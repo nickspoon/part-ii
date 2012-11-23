@@ -1,10 +1,6 @@
 package uk.ac.cam.ns507.partii;
 
-import javolution.util.FastTable;
-import javolution.util.Index;
-
 import org.jscience.mathematics.number.LargeInteger;
-import org.jscience.mathematics.number.ModuloInteger;
 import org.jscience.mathematics.number.ModuloInteger;
 import org.jscience.mathematics.vector.DenseMatrix;
 import org.jscience.mathematics.vector.DenseVector;
