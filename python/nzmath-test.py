@@ -5,6 +5,7 @@ x = f2.createElement(0)
 y = f2.createElement(1)
 print x - y
 print y + 1
+print y.inverse()
 print
 
 f3 = finitefield.FinitePrimeField(3)
