@@ -53,3 +53,26 @@ class Module:
                     except matrix.NoInverseImage:
                         pass
         return None
+        
+    def reflexiveEndomorphism(self, v):
+        # Calculate a projection pi which is a lambda-endomorphism of V, such 
+        # that im(pi) = lambda*v and pi(v) = v by solving a system of linear
+        # equations.
+        
+        # First guarantee that pi is a lambda-endomorphism
+        m = matrix.Matrix(self.algebra.dim*self.dim**2, self.dim**2, self.field)
+        for i in range(self.algebra.dim):
+            for j in range(self.dim):
+                for l in range(self.dim):
+                    # Expand the equation indices
+                    row = self.algebra.dim*self.dim*i + self.dim*j + l
+                    for k in range(self.dim):
+                        m[row, self.dim*k + j] += self.stconsts[i][k,l]
+                        m[row, self.dim*l + k] -= self.stconsts[i][j,k]
+        pi_space = m.kernel()
+        pi = []
+        for i in range(pi_space.column):
+            pimat = matrix.Matrix(self.dim, self.dim, pi_space.getColumn(i).compo, \
+                                    self.field)
+            pi.append(pimat)
+        return pi
