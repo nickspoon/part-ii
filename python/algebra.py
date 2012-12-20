@@ -1,22 +1,40 @@
 from nzmath import finitefield, matrix, vector
+from util import *
 
-class Algebra:
-
-    def __init__(self, field, stconsts):
+class StructureConstantObject(object):
+    def __init__(self, field, stconsts=None):
         self.stconsts = stconsts
         self.field = field
-        self.dim = stconsts[0].column
-
-class Module:
-    
-    def __init__(self, field, alg, stconsts):
-        self.stconsts = stconsts
-        self.algebra = alg
-        self.field = field
-        self.dim = stconsts[0].column
-
+        if self.stconsts:
+            self.dim = stconsts[0].column
+        
     def getDimension(self):
         return self.dim
+
+    # Get structure constant eta_i,j^k
+    # Structure constants are stored as a list of matrices H_i.
+    # > eta_i,j^k = H_i[k,j]
+    # This representation allows for matrix multiplication to act on 
+    # module-vectors as expected, i.e. the result of multiplying a module
+    # element x with an algebra basis vector y is represented by V = H_y * V_x
+    # where V_x is the vector representation of x.
+    def getStruct(self, i, j, k):
+        return self.stconsts[i-1][k,j]
+        
+    def vectorMultiply(self, a, b):
+        M = matrix.Matrix(self.dim, self.dim, self.field)
+        for i in range1(len(a)):
+            M += a[i] * self.stconsts[i-1]
+        return M*b
+
+class Algebra(StructureConstantObject):
+    pass
+
+class Module(StructureConstantObject):
+    
+    def __init__(self, field, alg, stconsts=None):
+        self.algebra = alg
+        super(Module, self).__init__(field, stconsts)
         
     # This matrix represents the coefficients of a system of linear equations
     # of the form av = X, where a is an element of the algebra, and v and X
@@ -24,9 +42,9 @@ class Module:
     # M[k,i] = sum[j](v[j]*stconsts[i,j,k])
     def multiplicativeMatrix(self, v):
         m = matrix.Matrix(self.dim, self.algebra.dim, self.field)
-        for row in range(0, m.row):
-            for col in range(0, m.column):
-                m[row,col] = sum(v[j] * self.stconsts[col][j,row] for j in range(0, self.dim))
+        for row in range1(m.row):
+            for col in range1(m.column):
+                m[row,col] = sum(v[j] * self.getStruct(col, j, row) for j in range1(self.dim))
         return m
     
     def computeAnnihilators(self, v, m=None):
@@ -40,12 +58,12 @@ class Module:
         ann = self.computeAnnihilators(v, m)
         if ann is not None:
             # Iterate through the basis of V v1...vn
-            for j in range(self.dim):
+            for j in range1(self.dim):
                 # Iterate through the annihilators of v
-                for z in range(ann.column):
-                    b = vector.Vector([ sum(ann[z,i] * self.stconsts[i][j,k] \
-                            for i in range(self.algebra.dim)) \
-                            for k in range(self.dim) ])
+                for z in range1(ann.column):
+                    b = vector.Vector([ sum(ann[i,z] * self.getStruct(i, j, k) \
+                            for i in range1(self.algebra.dim)) \
+                            for k in range1(self.dim) ])
                     try:
                         a = m.solve(b)
                         if a is not None:
