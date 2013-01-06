@@ -1,4 +1,5 @@
-from nzmath import finitefield, matrix, vector
+from nzmath import matrix, vector
+from linalg import MatrixLinearEquations
 from util import *
 
 class StructureConstantObject(object):
@@ -26,6 +27,12 @@ class StructureConstantObject(object):
         for i in range1(len(a)):
             M += a[i] * self.stconsts[i-1]
         return M*b
+    
+    # Return a spanning set S of Lv given by
+    # S = { a_i * v | a_i in basis(L) }
+    # N.B. for convenience this is not a set but a matrix, so that S[i] = a_i * v
+    def spanningSet(self, v):
+        return matrix.Matrix(self.dim, self.algebra.dim, [ s * v for s in self.stconsts ])
 
 class Algebra(StructureConstantObject):
     pass
@@ -64,12 +71,10 @@ class Module(StructureConstantObject):
                     b = vector.Vector([ sum(ann[i,z] * self.getStruct(i, j, k) \
                             for i in range1(self.algebra.dim)) \
                             for k in range1(self.dim) ])
-                    try:
-                        a = m.solve(b)
-                        if a is not None:
-                            return ann[z]
-                    except matrix.NoInverseImage:
-                        pass
+                    # ma = b has a solution iff av = Ann[z]w
+                    a = m.solve(b)
+                    if a is None:
+                        return ffvector([ 1 if x == j else 0 for x in range1(self.dim) ], GF2)
         return None
         
     def reflexiveEndomorphism(self, v):
@@ -78,19 +83,22 @@ class Module(StructureConstantObject):
         # equations.
         
         # First guarantee that pi is a lambda-endomorphism
-        m = matrix.Matrix(self.algebra.dim*self.dim**2, self.dim**2, self.field)
-        for i in range(self.algebra.dim):
-            for j in range(self.dim):
-                for l in range(self.dim):
-                    # Expand the equation indices
-                    row = self.algebra.dim*self.dim*i + self.dim*j + l
-                    for k in range(self.dim):
-                        m[row, self.dim*k + j] += self.stconsts[i][k,l]
-                        m[row, self.dim*l + k] -= self.stconsts[i][j,k]
-        pi_space = m.kernel()
-        pi = []
-        for i in range(pi_space.column):
-            pimat = matrix.Matrix(self.dim, self.dim, pi_space.getColumn(i).compo, \
-                                    self.field)
-            pi.append(pimat)
-        return pi
+        lineq = MatrixLinearEquations(self.field, self.dim, self.dim)
+        for M in self.stconsts:
+            lineq.weakSimilarity(M)
+        
+        # Add the condition pi(v) = v
+        lineq.matrixEquation(v, v)
+        solspace = lineq.solve()
+        self.imageOf(v, solspace)
+        return solspace
+        
+    def imageOf(self, v, (X, kernel)):
+        # Given a matrix X and basis X_1, ..., X_n defining a space S, find
+        # a projection pi in S such that im(pi) = lambda * v.
+        
+        # We require that for all v_i in basis(V), there is some x_i in lambda
+        # such that pi(v_i) = x_i * v = sum_j(c_ij * a_j * v) for a_j in
+        # basis(lambda).
+        
+        S = self.spanningSet(v)

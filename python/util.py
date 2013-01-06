@@ -1,4 +1,9 @@
-from nzmath import vector
+from nzmath import finitefield, vector, matrix
+
+GF2 = finitefield.FinitePrimeField(2)
+
+class DimensionError(vector.VectorSizeError, matrix.MatrixSizeError):
+    pass
 
 def ffvector(compo, field):
     ffcmp = map(field.createElement, compo)
