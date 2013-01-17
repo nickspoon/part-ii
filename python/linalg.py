@@ -50,6 +50,9 @@ class MatrixLinearEquations(LinearEquations):
         self.row = row
         self.col = col
         super(MatrixLinearEquations, self).__init__(field, row*col)
+        
+    def addCoefficientMatrix(self, A, n):
+        self.addEquation(flatten_matrix(A), n)
 
     def weakSimilarity(self, A):
         # Find some X s.t. XA = AX, i.e. XA - AX = 0 where X, A are

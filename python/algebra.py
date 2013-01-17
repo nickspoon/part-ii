@@ -60,6 +60,8 @@ class Module(StructureConstantObject):
         return m.kernel()
         
     def rankMax(self, v):
+        # Find the first w in basis(V) such that Ann(V)w is not a subset of lambda*v
+        # If v is of maximal rank, this procedure returns None, otherwise it returns w.
         # Save us computing the multiplicative matrix twice
         m = self.multiplicativeMatrix(v)
         ann = self.computeAnnihilators(v, m)
@@ -72,9 +74,13 @@ class Module(StructureConstantObject):
                             for i in range1(self.algebra.dim)) \
                             for k in range1(self.dim) ])
                     # ma = b has a solution iff av = Ann[z]w
-                    a = m.solve(b)
+                    try:
+                        a = m.solve(b)
+                    except matrix.NoInverseImage:
+                        a = None
                     if a is None:
-                        return ffvector([ 1 if x == j else 0 for x in range1(self.dim) ], GF2)
+                        return ffvector([ 1 if x == j else 0 for x in range1(self.dim) ],
+                                             self.field)
         return None
         
     def reflexiveEndomorphism(self, v):
@@ -90,8 +96,9 @@ class Module(StructureConstantObject):
         # Add the condition pi(v) = v
         lineq.matrixEquation(v, v)
         solspace = lineq.solve()
-        self.imageOf(v, solspace)
-        return solspace
+        
+        # Select a solution s.t. im(pi) = lambda*v
+        return self.imageOf(v, solspace)
         
     def imageOf(self, v, (X, kernel)):
         # Given a matrix X and basis X_1, ..., X_n defining a space S, find
@@ -101,4 +108,33 @@ class Module(StructureConstantObject):
         # such that pi(v_i) = x_i * v = sum_j(c_ij * a_j * v) for a_j in
         # basis(lambda).
         
+        # From the precondition, we know that pi = X + sum_i(d_i * X_i) for 
+        # some d_i.
         S = self.spanningSet(v)
+        lineq = MatrixLinearEquations(self.field, self.dim, self.algebra.dim + 1)
+        for row in range1(self.dim):
+            for col in range1(self.dim):
+                # Matrix of coefficients of c_ij, plus an extra column for d_i
+                C = matrix.Matrix(self.dim, self.algebra.dim + 1, self.field)
+                # sum_basis{(A[basis] * v)[row] * c[col,basis]}
+                for basis in range1(self.algebra.dim):
+                    C[col,basis] = S[row,basis]
+                # - sum_i{(X_i)[row,col] * d_i}
+                for i in range1(len(kernel)):
+                    C[i,C.column] = -kernel[i-1][row,col]
+                lineq.addCoefficientMatrix(C, X[row,col])
+        soln = lineq.solution()
+        d = soln[soln.column]
+        Z = X.copy()
+        for i in range1(len(kernel)):
+            Z += d[i] * kernel[i-1]
+        return Z
+        
+    def findMaxRank(self, initial):
+        v = initial.copy()
+        w = self.rankMax(v)
+        while w is not None:
+            pi = self.reflexiveEndomorphism(v)
+            v += w - pi*w
+            w = self.rankMax(v)
+        return v
