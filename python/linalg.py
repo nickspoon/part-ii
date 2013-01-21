@@ -110,6 +110,15 @@ def unflatten_matrix(v, row, col):
     compo = [ vector.Vector(v.compo[i:i+row]) for i in range(0, len(v.compo), row) ]
     return matrix.Matrix(row, col, compo)
 
+def compute_g(p, i, m):
+    # Convert m to an integral matrix
+    M = m.map(lambda x: x.getResidue())
+    # Compute f_i(M)
+    f = (M**(p**i)).trace()/(p**i)
+    assert(f == int(f))
+    # Obtain a result in F by taking modulo p
+    return (int(f) % p)
+
 if __name__ == "__main__":
     A = matrix.FieldMatrix(2, 3, [5, 2, 1, 2, 3, 1])
     b = vector.Vector([4, 1])
@@ -126,11 +135,15 @@ if __name__ == "__main__":
     C = matrix.FieldMatrix(2, 2, [1, 0, 0, 1], GF2)
     D = matrix.FieldMatrix(2, 2, [0, 1, 1, 0], GF2)
     lineq2 = MatrixLinearEquations(C.coeff_ring, 2, 2)
-    lineq2.weak_similarity(C)
-    lineq2.weak_similarity(D)
+    lineq2.weakSimilarity(C)
+    lineq2.weakSimilarity(D)
     empty = matrix.Matrix(2, 2, C.coeff_ring)
     for X in lineq2.kernel():
         print X
         assert (X*C - C*X) == empty
         assert (X*D - D*X) == empty
+    
+    print
+    print "Ideal functions g_i"
+    print compute_g(2, 1, D)
     

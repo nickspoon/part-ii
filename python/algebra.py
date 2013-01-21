@@ -1,6 +1,7 @@
 from nzmath import matrix, vector
-from linalg import MatrixLinearEquations
+from linalg import MatrixLinearEquations, compute_g
 from util import *
+import math
 
 class StructureConstantObject(object):
     def __init__(self, field, stconsts=None):
@@ -22,11 +23,15 @@ class StructureConstantObject(object):
     def getStruct(self, i, j, k):
         return self.stconsts[i-1][k,j]
         
-    def vectorMultiply(self, a, b):
+    def toMatrix(self, a, B=None):
+        if B is None: B = self.stconsts
         M = matrix.Matrix(self.dim, self.dim, self.field)
         for i in range1(len(a)):
-            M += a[i] * self.stconsts[i-1]
-        return M*b
+            M += a[i] * B[i-1]
+        return M
+        
+    def vectorMultiply(self, a, b):
+        return self.toMatrix(a)*b
     
     # Return a spanning set S of Lv given by
     # S = { a_i * v | a_i in basis(L) }
@@ -35,7 +40,32 @@ class StructureConstantObject(object):
         return matrix.Matrix(self.dim, self.algebra.dim, [ s * v for s in self.stconsts ])
 
 class Algebra(StructureConstantObject):
-    pass
+    
+    def radical(self):
+        p = self.field.getCharacteristic()
+        l = int(math.log(self.dim, p))
+        # B = A union {1_n}
+        # If we assume that the algebra is unital we don't need this
+        B = self.stconsts + [matrix.unitMatrix(self.dim, self.field)]
+        # I_-1 = A, represented by a matrix of basis vectors over A
+        I = matrix.unitMatrix(len(B), self.field)
+        I.deleteColumn(len(B))
+        for i in range1(0, l):
+            M = matrix.Matrix(len(B), I.column, self.field)
+            for j in range1(len(B)):
+                for k in range1(I.column):
+                    M[j,k] = compute_g(p, i, self.toMatrix(I[k], B)*B[j-1])
+            basis = M.kernel()
+            if basis is None:
+                return None
+            # The solution is a set of column vectors sum_j(x_j * i_(i-1),j)
+            # where i_k,1, ..., i_k,n = basis(I_k). Here we transform these 
+            # back to vectors in the basis of B by multiplying by basis(I_k).
+            zero = vector.Vector([ self.field.zero for i in range(I.row) ])
+            I = matrix.Matrix(len(B), basis.column,
+                    [ sum((basis[i,j] * I[i] for i in range1(I.column)), zero)
+                        for j in range1(basis.column)])
+        return I
 
 class Module(StructureConstantObject):
     
