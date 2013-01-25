@@ -5,6 +5,9 @@ GF2 = finitefield.FinitePrimeField(2)
 class DimensionError(vector.VectorSizeError, matrix.MatrixSizeError):
     pass
 
+def matrixToSet(X):
+    return set( X[i] for i in range1(X.column) )
+
 def ffvector(compo, field):
     ffcmp = map(field.createElement, compo)
     return vector.Vector(ffcmp)

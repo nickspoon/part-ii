@@ -1,5 +1,5 @@
 from nzmath import matrix, vector
-from linalg import MatrixLinearEquations, compute_g
+from linalg import MatrixLinearEquations, basis_reduce
 from util import *
 import math
 
@@ -38,6 +38,21 @@ class StructureConstantObject(object):
     # N.B. for convenience this is not a set but a matrix, so that S[i] = a_i * v
     def spanningSet(self, v):
         return matrix.Matrix(self.dim, self.algebra.dim, [ s * v for s in self.stconsts ])
+        
+    # Compute a basis B for this structure such that W + Z = B for 
+    # Z < basis(self). Return Z (i.e. self/span(W)).
+    def computeQuotient(self, W):
+        U = W.copy()
+        I = matrix.unitMatrix(self.dim, self.field)
+        bv = []
+        for i in range1(self.dim):
+            X = U.copy()
+            X.extendColumn(I[i])
+            if X.rank() > U.rank():
+                U = X
+                bv.append(i)
+        Z = matrix.Matrix(self.dim, len(bv), [ I[i] for i in bv ], GF2)
+        return Z
 
 class Algebra(StructureConstantObject):
     
@@ -65,7 +80,7 @@ class Algebra(StructureConstantObject):
             I = matrix.Matrix(len(B), basis.column,
                     [ sum((basis[i,j] * I[i] for i in range1(I.column)), zero)
                         for j in range1(basis.column)])
-        return I
+        return I.getBlock(1, 1, self.dim, I.column)
 
 class Module(StructureConstantObject):
     
@@ -168,3 +183,25 @@ class Module(StructureConstantObject):
             v += w - pi*w
             w = self.rankMax(v)
         return v
+        
+    def radical(self):
+        # RadV = (RadL)V = span({a_i*x_j | a_i in basis(RadL), x_j in basis(V)})
+        R = self.algebra.radical()
+        RV = None
+        # a_i*x_j => matrix(a_i)*vector(x_j) = matrix(a_i)_j
+        for col in range1(R.column):
+            if RV is None:
+                RV = self.toMatrix(R[col])
+            else:
+                RV.extendColumn(self.toMatrix(R[col]))
+        return basis_reduce(RV)
+
+def compute_g(p, i, m):
+    # Convert m to an integral matrix
+    M = m.map(lambda x: x.getResidue())
+    # Compute f_i(M)
+    f = (M**(p**i)).trace()/(p**i)
+    assert(f == int(f))
+    # Obtain a result in F by taking modulo p
+    return (int(f) % p)
+    

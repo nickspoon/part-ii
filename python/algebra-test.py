@@ -43,11 +43,22 @@ for x in ([0, 0], [1, 0], [0, 1], [1, 1]):
                 "pi * x * y != x * pi * y for x = " + str(x) + ", y = " + str(y)
 print "An element of V which is of maximal rank"
 print V.findMaxRank(v)
+print
 
 print "Radical"
 stconsts = []
 stconsts.append(matrix.Matrix(2, 2, [1, 0, 0, 1], GF2))
 stconsts.append(matrix.Matrix(2, 2, [0, 1, 1, 0], GF2))
 L = algebra.Algebra(GF2, stconsts)
-print L.radical()
+V = algebra.Module(GF2, L, stconsts)
+print "Rad(L)"
+RadL = L.radical()
+print RadL
+print "L/Rad(L)"
+print L.computeQuotient(RadL)
+print "Rad(V) = Rad(L)V"
+RadV = V.radical()
+print RadV
+print "V/Rad(V)"
+print V.computeQuotient(RadV)
 

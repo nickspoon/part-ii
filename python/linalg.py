@@ -110,14 +110,16 @@ def unflatten_matrix(v, row, col):
     compo = [ vector.Vector(v.compo[i:i+row]) for i in range(0, len(v.compo), row) ]
     return matrix.Matrix(row, col, compo)
 
-def compute_g(p, i, m):
-    # Convert m to an integral matrix
-    M = m.map(lambda x: x.getResidue())
-    # Compute f_i(M)
-    f = (M**(p**i)).trace()/(p**i)
-    assert(f == int(f))
-    # Obtain a result in F by taking modulo p
-    return (int(f) % p)
+# Reduce the set of column vectors X to a basis
+def basis_reduce(X):
+    # We may select the first basis element arbitrarily
+    B = matrix.Matrix(X.row, 1, [X[1]], X.coeff_ring)
+    for col in range1(2, X.column):
+        U = B.copy()
+        U.extendColumn(X[col])
+        if U.rank() > B.rank():
+            B = U
+    return B
 
 if __name__ == "__main__":
     A = matrix.FieldMatrix(2, 3, [5, 2, 1, 2, 3, 1])
