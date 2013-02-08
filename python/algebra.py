@@ -1,14 +1,15 @@
 from nzmath import matrix, vector
-from linalg import MatrixLinearEquations, basis_reduce
+from linalg import *
 from util import *
+from itertools import product
 import math
 
 class StructureConstantObject(object):
-    def __init__(self, field, stconsts=None):
+    def __init__(self, field, stconsts):
         self.stconsts = stconsts
         self.field = field
         if self.stconsts:
-            self.dim = stconsts[0].column
+            self.dim = stconsts[0].row
         
     def getDimension(self):
         return self.dim
@@ -25,10 +26,7 @@ class StructureConstantObject(object):
         
     def toMatrix(self, a, B=None):
         if B is None: B = self.stconsts
-        M = matrix.Matrix(self.dim, self.dim, self.field)
-        for i in range1(len(a)):
-            M += a[i] * B[i-1]
-        return M
+        return vector_to_matrix(a, B)
         
     def vectorMultiply(self, a, b):
         return self.toMatrix(a)*b
@@ -39,8 +37,22 @@ class StructureConstantObject(object):
     def spanningSet(self, v):
         return matrix.Matrix(self.dim, self.algebra.dim, [ s * v for s in self.stconsts ])
         
+    def closed(self, l1, l2=None):
+        if l2 is None: l2 = l1
+        for X in (self.stconsts[x-1] for x in l1):
+            for i in l2:
+                if not all(X[j,i] == self.field.zero
+                            for j in range1(X.row) if j not in l2):
+                    return False
+        return True
+        
+    # rk(v) is defined as rank(phi_v) where phi_v(x) = xv.
+    # phi_v is equivalent to the matrix whose columns are a_i * v for a_i in basis(L)
+    def rank(self, v):
+        return self.spanningSet(v).rank()
+        
     # Compute a basis B for this structure such that W + Z = B for 
-    # Z < basis(self). Return Z (i.e. self/span(W)).
+    # Z < basis(self). Return [i] s.t. Z = <v_i> (i.e. self/span(W)).
     def computeQuotient(self, W):
         U = W.copy()
         I = matrix.unitMatrix(self.dim, self.field)
@@ -51,10 +63,37 @@ class StructureConstantObject(object):
             if X.rank() > U.rank():
                 U = X
                 bv.append(i)
-        Z = matrix.Matrix(self.dim, len(bv), [ I[i] for i in bv ], GF2)
-        return Z
+        assert U.rank() == self.dim
+        #Z = matrix.Matrix(self.dim, len(bv), [ I[i] for i in bv ], GF2)
+        self.close(bv, W)
+        return bv
+    
+    # Produce a basis for L/W closed under multiplication.
+    def close(self, l, W):
+        # i.e. if A is a subalgebra of L, with basis(A) = a_1, ..., a_m and
+        # basis(L) = a_1, ..., a_m, ..., a_n, then for all x, y in A, if
+        # x * y = sum_k (c_k * a_k) then c_k = 0 for all k > m.
+        
+        # lbar is a list of the bases excluded by the subalgebra
+        lbar = [ i for i in range1(self.dim) if i not in l ]
+        coeffs = W.subMatrix(lbar, range1(W.column))
+        B = None
+        for (i,j) in product(l, l):
+            lineq = LinearEquations(self.field, W.column)
+            v = vector.Vector([self.getStruct(i, j, k) for k in lbar])
+            lineq.addEquations(coeffs, v)
+            w = lineq.solution()
 
 class Algebra(StructureConstantObject):
+
+    @classmethod
+    def fromBasis(cls, field, Lbasis):
+        stconsts = struct_from_basis(field, Lbasis)
+        return cls(field, stconsts)
+
+    def __init__(self, field, stconsts, ss=False):
+        self.semisimple = ss
+        super(Algebra, self).__init__(field, stconsts)
     
     def radical(self):
         p = self.field.getCharacteristic()
@@ -72,6 +111,7 @@ class Algebra(StructureConstantObject):
                     M[j,k] = compute_g(p, i, self.toMatrix(I[k], B)*B[j-1])
             basis = M.kernel()
             if basis is None:
+                self.semisimple = True
                 return None
             # The solution is a set of column vectors sum_j(x_j * i_(i-1),j)
             # where i_k,1, ..., i_k,n = basis(I_k). Here we transform these 
@@ -80,11 +120,27 @@ class Algebra(StructureConstantObject):
             I = matrix.Matrix(len(B), basis.column,
                     [ sum((basis[i,j] * I[i] for i in range1(I.column)), zero)
                         for j in range1(basis.column)])
+        assert(all(x == self.field.zero for x in I.getRow(I.row)))
         return I.getBlock(1, 1, self.dim, I.column)
+        
+    # Return a subalgebra containing only the bases with index in l
+    def subalgebra(self, l):
+        # For A to be a subalgebra, we require that xy in A for all x, y in A
+        assert self.closed(l)
+        subconsts = []
+        for i in l:
+            X = rc_eliminate(self.stconsts[i-1], l)
+            subconsts.append(X)
+        return Algebra(self.field, subconsts)
 
 class Module(StructureConstantObject):
     
-    def __init__(self, field, alg, stconsts=None):
+    @classmethod
+    def fromBasis(cls, field, Lbasis, Vbasis, alg):
+        stconsts = struct_from_basis(field, Lbasis, Vbasis)
+        return cls(field, stconsts, alg)
+    
+    def __init__(self, field, stconsts, alg):
         self.algebra = alg
         super(Module, self).__init__(field, stconsts)
         
@@ -175,18 +231,35 @@ class Module(StructureConstantObject):
             Z += d[i] * kernel[i-1]
         return Z
         
-    def findMaxRank(self, initial):
-        v = initial.copy()
+    def findGenerator(self):
+        # If the algebra is not known to be semisimple, compute the radical
+        if not self.algebra.semisimple:
+            RadL = self.algebra.radical()
+            if RadL is not None:
+                LbyRadL = self.algebra.computeQuotient(RadL)
+                RadV = self.radical(RadL)
+                VbyRadV = self.computeQuotient(RadV)
+                Lbar = self.algebra.subalgebra(LbyRadL)
+                Vbar = self.submodule(VbyRadV, LbyRadL, Lbar)
+                x = Vbar.findGenerator()
+                if x is not None:
+                    return project(x, VbyRadV, self.dim, self.field)
+                else:
+                    return None
+        # Semisimple case
+        v = matrix.unitMatrix(self.dim, self.field)[1]
         w = self.rankMax(v)
         while w is not None:
             pi = self.reflexiveEndomorphism(v)
             v += w - pi*w
             w = self.rankMax(v)
+        if self.rank(v) < self.dim: return None
         return v
         
-    def radical(self):
+    def radical(self, R=None):
         # RadV = (RadL)V = span({a_i*x_j | a_i in basis(RadL), x_j in basis(V)})
-        R = self.algebra.radical()
+        if R is None: R = self.algebra.radical()
+        if R is None: return None
         RV = None
         # a_i*x_j => matrix(a_i)*vector(x_j) = matrix(a_i)_j
         for col in range1(R.column):
@@ -195,6 +268,20 @@ class Module(StructureConstantObject):
             else:
                 RV.extendColumn(self.toMatrix(R[col]))
         return basis_reduce(RV)
+        
+    # Return a submodule of the bases with index in lm over the subalgebra of
+    # the bases with index in la.
+    def submodule(self, lm, la, alg=None):
+        if alg is None:
+            alg = self.algebra.subalgebra(la)
+        # For V to be a submodule over subalgebra A, we require that
+        # xy in V for all x in A, y in V
+        assert self.closed(la, lm)
+        subconsts = []
+        for i in la:
+            X = rc_eliminate(self.stconsts[i-1], lm)
+            subconsts.append(X)
+        return Module(self.field, subconsts, alg)
 
 def compute_g(p, i, m):
     # Convert m to an integral matrix
@@ -204,4 +291,25 @@ def compute_g(p, i, m):
     assert(f == int(f))
     # Obtain a result in F by taking modulo p
     return (int(f) % p)
+
+def project(v, l, n, f):
+    assert len(v) == len(l)
+    x = vector.Vector([ f.zero for i in range(n) ])
+    for i in range1(len(l)):
+        x[l[i-1]] = v[i]
+    return x
+
+# Computes the structure constant matrices for multiplication over bases
+# basis1 = {A_1, ..., A_n}, basis2 = {V_1, ..., V_m} so that
+# A_i * V_j = sum_k (eta_i,j^k * V_k)
+def struct_from_basis(field, basis1, basis2=None):
+    if basis2 is None: basis2 = basis1
+    n = len(basis1)
+    m = len(basis2)
+    stconsts = [ matrix.Matrix(m, m, field) for i in range(n) ]
+    for (i, j) in product(range(n), range(m)):
+        result = basis1[i] * basis2[j]
+        stconsts[i][j+1] = decompose(result, basis2, field)[1]
+        assert vector_to_matrix(stconsts[i][j+1], basis2) == result
+    return stconsts
     

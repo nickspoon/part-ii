@@ -1,6 +1,6 @@
-from nzmath import matrix, vector
-from nzmath import ring
+from nzmath import matrix, vector, ring
 from util import *
+from itertools import product
 
 # Class representing a system of linear equations.
 # The solution is x where self.A * x = self.b
@@ -54,21 +54,28 @@ class MatrixLinearEquations(LinearEquations):
     def addCoefficientMatrix(self, A, n):
         self.addEquation(flatten_matrix(A), n)
 
-    def weakSimilarity(self, A):
-        # Find some X s.t. XA = AX, i.e. XA - AX = 0 where X, A are
+    def weakSimilarity(self, A, B=None):
+        # Find some X s.t. XA = BX, i.e. XA - BX = 0 where X, A are
         # matrices over a field.
+        # A, B are square matrices of dimensions m, n
+        # Output X has dimension n x m
         if A.column != A.row:
             raise DimensionError("Square matrix required for similarity")
-        for i in range1(A.row):
+        if B is None:
+            B = A
+        else:
+            if B.column != B.row:
+                raise DimensionError("Square matrix required for similarity")
+        for i in range1(B.row):
             for j in range1(A.column):
                 # Coefficients of X_ij, initially zero
-                coeffs = matrix.FieldSquareMatrix(A.row, A.column, self.field)
+                coeffs = matrix.FieldMatrix(B.row, A.column, self.field)
                 # XA: Multiply X-row by A-column
                 coeffs.setRow(i, A.getColumn(j))
-                # -AX: Multiply X-column by A-row
-                coeffs.setColumn(j, -A.getRow(i))
-                # XA - AX: handle row/column intersection
-                coeffs[i,j] = A[j,j] - A[i,i]
+                # -BX: Multiply X-column by B-row
+                coeffs.setColumn(j, -B.getRow(i))
+                # XA - BX: handle row/column intersection
+                coeffs[i,j] = A[j,j] - B[i,i]
                 self.addEquation(flatten_matrix(coeffs), 0)
                 
     def matrixEquation(self, a, b):
@@ -121,6 +128,29 @@ def basis_reduce(X):
             B = U
     return B
 
+# Convert the vector representation of a matrix over a basis B into
+# its standard matrix representation M = sum_i (b_i * B_i)
+def vector_to_matrix(v, B):
+    M = matrix.Matrix(B[0].row, B[0].column, B[0].coeff_ring)
+    for i in range1(len(v)):
+        M += v[i] * B[i-1]
+    return M
+
+# Decompose a matrix M into a linear combination of basis elements
+# For basis {A_1, ..., A_n}, where M = sum_{k=1..n} a_k * A_k, return (a_k)
+def decompose(M, basis, field):
+    # We could avoid redundancy by only computing coefficients once per basis.
+    lineq = LinearEquations(field, len(basis))
+    for (x, y) in product(range1(M.row), range1(M.column)):
+        coeffs = vector.Vector([ A[x,y] for A in basis ])
+        lineq.addEquation(coeffs, M[x,y])
+    return lineq.solution()
+
+# Given a matrix X and list of indices l, return a matrix Y containing
+# only the rows and columns of X whose indices are in l.    
+def rc_eliminate(X, l):
+    return X.subMatrix(l, l)
+
 if __name__ == "__main__":
     A = matrix.FieldMatrix(2, 3, [5, 2, 1, 2, 3, 1])
     b = vector.Vector([4, 1])
@@ -135,17 +165,11 @@ if __name__ == "__main__":
     print
     print "Weak similarity"
     C = matrix.FieldMatrix(2, 2, [1, 0, 0, 1], GF2)
-    D = matrix.FieldMatrix(2, 2, [0, 1, 1, 0], GF2)
-    lineq2 = MatrixLinearEquations(C.coeff_ring, 2, 2)
-    lineq2.weakSimilarity(C)
-    lineq2.weakSimilarity(D)
-    empty = matrix.Matrix(2, 2, C.coeff_ring)
+    D = matrix.FieldMatrix(3, 3, [1, 0, 1, 0, 1, 0, 1, 1, 0], GF2)
+    lineq2 = MatrixLinearEquations(C.coeff_ring, 3, 2)
+    lineq2.weakSimilarity(C, D)
     for X in lineq2.kernel():
         print X
-        assert (X*C - C*X) == empty
-        assert (X*D - D*X) == empty
-    
-    print
-    print "Ideal functions g_i"
-    print compute_g(2, 1, D)
+        print
+        assert X*C == D*X
     
