@@ -140,11 +140,9 @@ def vector_to_matrix(v, B):
 # For basis {A_1, ..., A_n}, where M = sum_{k=1..n} a_k * A_k, return (a_k)
 def decompose(M, basis, field):
     # We could avoid redundancy by only computing coefficients once per basis.
-    lineq = LinearEquations(field, len(basis))
-    for (x, y) in product(range1(M.row), range1(M.column)):
-        coeffs = vector.Vector([ A[x,y] for A in basis ])
-        lineq.addEquation(coeffs, M[x,y])
-    return lineq.solution()
+    A = matrix.Matrix(M.row * M.column, len(basis),
+            [ flatten_matrix(B) for B in basis ], field)
+    return A.inverseImage(flatten_matrix(M))
 
 # Given a matrix X and list of indices l, return a matrix Y containing
 # only the rows and columns of X whose indices are in l.    

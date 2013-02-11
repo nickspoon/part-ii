@@ -48,21 +48,21 @@ print
 print "Radical"
 stconsts = []
 stconsts.append(matrix.Matrix(2, 2, [0, 1, 1, 0], GF2))
-stconsts.append(matrix.Matrix(2, 2, [1, 1, 1, 1], GF2))
+stconsts.append(matrix.Matrix(2, 2, [1, 0, 0, 1], GF2))
 L = algebra.Algebra(GF2, stconsts)
 V = algebra.Module(GF2, stconsts, L)
 print "Rad(L)"
 RadL = L.radical()
 print RadL
 print "L/Rad(L)"
-print L.computeQuotient(RadL)
-print "Rad(V) = Rad(L)V"
-RadV = V.radical()
-print RadV
-print "V/Rad(V)"
-print V.computeQuotient(RadV)
+print L.quotient(RadL).stconsts
+#print "Rad(V) = Rad(L)V"
+#RadV = V.radical()
+#print RadV
+#print "V/Rad(V)"
+#print V.computeQuotient(RadV)
 
-Lbar = L.subalgebra(L.computeQuotient(RadL))
-Vbar = V.submodule(V.computeQuotient(RadV), L.computeQuotient(RadL), Lbar)
-print V.findGenerator()
+#Lbar = L.subalgebra(L.computeQuotient(RadL))
+#Vbar = V.submodule(V.computeQuotient(RadV), L.computeQuotient(RadL), Lbar)
+#print V.findGenerator()
 

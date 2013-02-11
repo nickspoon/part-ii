@@ -75,4 +75,4 @@ if __name__ == "__main__":
             noInverse = True
     As = [ random_matrix(dim, field) for i in range(n) ]
     Bs = [ X * A * Xprime for A in As ]
-    print_matrices [X, similarity(As, Bs, field)]
+    print_matrices([X, similarity(As, Bs, field)])

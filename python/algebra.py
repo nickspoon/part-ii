@@ -53,7 +53,7 @@ class StructureConstantObject(object):
         
     # Compute a basis B for this structure such that W + Z = B for 
     # Z < basis(self). Return [i] s.t. Z = <v_i> (i.e. self/span(W)).
-    def computeQuotient(self, W):
+    def quotientBasis(self, W):
         U = W.copy()
         I = matrix.unitMatrix(self.dim, self.field)
         bv = []
@@ -65,24 +65,25 @@ class StructureConstantObject(object):
                 bv.append(i)
         assert U.rank() == self.dim
         #Z = matrix.Matrix(self.dim, len(bv), [ I[i] for i in bv ], GF2)
-        self.close(bv, W)
         return bv
     
-    # Produce a basis for L/W closed under multiplication.
-    def close(self, l, W):
-        # i.e. if A is a subalgebra of L, with basis(A) = a_1, ..., a_m and
-        # basis(L) = a_1, ..., a_m, ..., a_n, then for all x, y in A, if
-        # x * y = sum_k (c_k * a_k) then c_k = 0 for all k > m.
-        
-        # lbar is a list of the bases excluded by the subalgebra
-        lbar = [ i for i in range1(self.dim) if i not in l ]
-        coeffs = W.subMatrix(lbar, range1(W.column))
-        B = None
-        for (i,j) in product(l, l):
-            lineq = LinearEquations(self.field, W.column)
-            v = vector.Vector([self.getStruct(i, j, k) for k in lbar])
-            lineq.addEquations(coeffs, v)
-            w = lineq.solution()
+    # Computes structure constants for a new basis B of this structure
+    # expressed as a matrix of vectors over the original basis
+    def rebase(self, B1, B2=None):
+        if B2 is None:
+            B2 = B1
+        # We express the multiplication of vectors in B1 by vectors in B2
+        # in terms of a sum of the vectors in B2
+        stconsts = []
+        for i in range1(B1.column):
+            M = matrix.Matrix(B2.column, B2.column, self.field)
+            for j in range1(B2.column):
+                v = self.vectorMultiply(B1[i], B2[j])
+                M[j] = B2.inverseImage(v)[1]
+            stconsts.append(M)
+        assert all(B2 * stconsts[i-1][j] == self.vectorMultiply(B1[i], B2[j])
+                    for i in range1(B1.column) for j in range1(B2.column))
+        return stconsts
 
 class Algebra(StructureConstantObject):
 
@@ -123,7 +124,7 @@ class Algebra(StructureConstantObject):
         assert(all(x == self.field.zero for x in I.getRow(I.row)))
         return I.getBlock(1, 1, self.dim, I.column)
         
-    # Return a subalgebra containing only the bases with index in l
+    """# Return a subalgebra containing only the bases with index in l
     def subalgebra(self, l):
         # For A to be a subalgebra, we require that xy in A for all x, y in A
         assert self.closed(l)
@@ -131,6 +132,17 @@ class Algebra(StructureConstantObject):
         for i in l:
             X = rc_eliminate(self.stconsts[i-1], l)
             subconsts.append(X)
+        return Algebra(self.field, subconsts)"""
+    
+    def quotient(self, I):
+        bv = self.quotientBasis(I)
+        # Construct a basis B for self as vectors over the current basis
+        B = matrix.Matrix(self.dim, len(bv),
+            [ matrix.unitMatrix(self.dim, self.field)[i] for i in bv ])
+        B.extendColumn(I)
+        subconsts = self.rebase(B)[:len(bv)]
+        for i in range(len(bv)):
+            subconsts[i] = subconsts[i].getBlock(1, 1, len(bv))
         return Algebra(self.field, subconsts)
 
 class Module(StructureConstantObject):
