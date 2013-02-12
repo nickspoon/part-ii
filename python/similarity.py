@@ -62,19 +62,19 @@ if __name__ == "__main__":
         print "Not invertible"
 
     print "Simultaneous similarity test"
-    dim = 15
-    n = 5
-    field = GF(prime.randPrime(3))
-    noInverse = True
-    while noInverse:
-        noInverse = False
-        X = random_matrix(dim, field)
-        try:
-            Xprime = X.inverse()
-        except matrix.NoInverse:
-            noInverse = True
-    As = [ random_matrix(dim, field) for i in range(n) ]
-    Bs = [ X * A * Xprime for A in As ]
+    dim = 3
+    n = 10
+    field = GF(prime.randPrime(1))
+    invertible = True
+    X = random_matrix(dim, field)
+    try:
+        Xprime = X.inverse()
+    except matrix.NoInverse:
+        invertible = False
+    Ms = [ random_matrix(dim, field) for i in range(n) ]
+    As = [ X * M for M in Ms ]
+    Bs = [ M * X for M in Ms ]
     print X
+    print "invertible =", invertible
     print
     print similarity(As, Bs, field)
