@@ -59,12 +59,12 @@ if __name__ == "__main__":
     try:
         print_matrices([R, R.inverse()])
     except matrix.NoInverse:
-        "Not invertible"
+        print "Not invertible"
 
     print "Simultaneous similarity test"
-    dim = 3
-    n = 3
-    field = GF(prime.randPrime(1))
+    dim = 15
+    n = 5
+    field = GF(prime.randPrime(3))
     noInverse = True
     while noInverse:
         noInverse = False
@@ -75,4 +75,6 @@ if __name__ == "__main__":
             noInverse = True
     As = [ random_matrix(dim, field) for i in range(n) ]
     Bs = [ X * A * Xprime for A in As ]
-    print_matrices([X, similarity(As, Bs, field)])
+    print X
+    print
+    print similarity(As, Bs, field)

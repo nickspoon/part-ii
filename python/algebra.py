@@ -10,6 +10,7 @@ class StructureConstantObject(object):
         self.field = field
         if self.stconsts:
             self.dim = stconsts[0].row
+            self.unit = matrix.unitMatrix(self.dim, self.field)
         
     def getDimension(self):
         return self.dim
@@ -30,21 +31,15 @@ class StructureConstantObject(object):
         
     def vectorMultiply(self, a, b):
         return self.toMatrix(a)*b
+        
+    def basisListMatrix(self, l):
+        return matrix.Matrix(self.dim, len(l), [ self.unit[i] for i in l ])
     
     # Return a spanning set S of Lv given by
     # S = { a_i * v | a_i in basis(L) }
     # N.B. for convenience this is not a set but a matrix, so that S[i] = a_i * v
     def spanningSet(self, v):
         return matrix.Matrix(self.dim, self.algebra.dim, [ s * v for s in self.stconsts ])
-        
-    def closed(self, l1, l2=None):
-        if l2 is None: l2 = l1
-        for X in (self.stconsts[x-1] for x in l1):
-            for i in l2:
-                if not all(X[j,i] == self.field.zero
-                            for j in range1(X.row) if j not in l2):
-                    return False
-        return True
         
     # rk(v) is defined as rank(phi_v) where phi_v(x) = xv.
     # phi_v is equivalent to the matrix whose columns are a_i * v for a_i in basis(L)
@@ -55,7 +50,7 @@ class StructureConstantObject(object):
     # Z < basis(self). Return [i] s.t. Z = <v_i> (i.e. self/span(W)).
     def quotientBasis(self, W):
         U = W.copy()
-        I = matrix.unitMatrix(self.dim, self.field)
+        I = self.unit
         bv = []
         for i in range1(self.dim):
             X = U.copy()
@@ -123,27 +118,17 @@ class Algebra(StructureConstantObject):
                         for j in range1(basis.column)])
         assert(all(x == self.field.zero for x in I.getRow(I.row)))
         return I.getBlock(1, 1, self.dim, I.column)
-        
-    """# Return a subalgebra containing only the bases with index in l
-    def subalgebra(self, l):
-        # For A to be a subalgebra, we require that xy in A for all x, y in A
-        assert self.closed(l)
-        subconsts = []
-        for i in l:
-            X = rc_eliminate(self.stconsts[i-1], l)
-            subconsts.append(X)
-        return Algebra(self.field, subconsts)"""
     
+    # Given a basis for the quotient I, return the subalgebra L/I.
     def quotient(self, I):
         bv = self.quotientBasis(I)
         # Construct a basis B for self as vectors over the current basis
-        B = matrix.Matrix(self.dim, len(bv),
-            [ matrix.unitMatrix(self.dim, self.field)[i] for i in bv ])
+        B = matrix.Matrix(self.dim, len(bv), [ self.unit[i] for i in bv ])
         B.extendColumn(I)
         subconsts = self.rebase(B)[:len(bv)]
-        for i in range(len(bv)):
+        for i in range(len(subconsts)):
             subconsts[i] = subconsts[i].getBlock(1, 1, len(bv))
-        return Algebra(self.field, subconsts)
+        return Algebra(self.field, subconsts), self.basisListMatrix(bv)
 
 class Module(StructureConstantObject):
     
@@ -248,14 +233,12 @@ class Module(StructureConstantObject):
         if not self.algebra.semisimple:
             RadL = self.algebra.radical()
             if RadL is not None:
-                LbyRadL = self.algebra.computeQuotient(RadL)
                 RadV = self.radical(RadL)
-                VbyRadV = self.computeQuotient(RadV)
-                Lbar = self.algebra.subalgebra(LbyRadL)
-                Vbar = self.submodule(VbyRadV, LbyRadL, Lbar)
+                Lbar, LB = self.algebra.quotient(RadL)
+                Vbar, VB = self.quotient(RadV, LB, Lbar)
                 x = Vbar.findGenerator()
                 if x is not None:
-                    return project(x, VbyRadV, self.dim, self.field)
+                    return VB * x
                 else:
                     return None
         # Semisimple case
@@ -280,20 +263,19 @@ class Module(StructureConstantObject):
             else:
                 RV.extendColumn(self.toMatrix(R[col]))
         return basis_reduce(RV)
-        
-    # Return a submodule of the bases with index in lm over the subalgebra of
-    # the bases with index in la.
-    def submodule(self, lm, la, alg=None):
-        if alg is None:
-            alg = self.algebra.subalgebra(la)
-        # For V to be a submodule over subalgebra A, we require that
-        # xy in V for all x in A, y in V
-        assert self.closed(la, lm)
-        subconsts = []
-        for i in la:
-            X = rc_eliminate(self.stconsts[i-1], lm)
-            subconsts.append(X)
-        return Module(self.field, subconsts, alg)
+    
+    # Given the basis of an ideal I of V and the basis of the subalgebra over
+    # which V/I is defined, return the submodule V/I.
+    def quotient(self, I, Ba, alg):
+        bv = self.quotientBasis(I)
+        # Construct a basis B for self as vectors over the current basis
+        B = matrix.Matrix(self.dim, len(bv),
+            [ matrix.unitMatrix(self.dim, self.field)[i] for i in bv ])
+        B.extendColumn(I)
+        subconsts = self.rebase(Ba, B)
+        for i in range(len(subconsts)):
+            subconsts[i] = subconsts[i].getBlock(1, 1, len(bv))
+        return Module(self.field, subconsts, alg), self.basisListMatrix(bv)
 
 def compute_g(p, i, m):
     # Convert m to an integral matrix
@@ -303,13 +285,6 @@ def compute_g(p, i, m):
     assert(f == int(f))
     # Obtain a result in F by taking modulo p
     return (int(f) % p)
-
-def project(v, l, n, f):
-    assert len(v) == len(l)
-    x = vector.Vector([ f.zero for i in range(n) ])
-    for i in range1(len(l)):
-        x[l[i-1]] = v[i]
-    return x
 
 # Computes the structure constant matrices for multiplication over bases
 # basis1 = {A_1, ..., A_n}, basis2 = {V_1, ..., V_m} so that

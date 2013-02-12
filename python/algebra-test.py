@@ -55,7 +55,7 @@ print "Rad(L)"
 RadL = L.radical()
 print RadL
 print "L/Rad(L)"
-print L.quotient(RadL).stconsts
+print L.quotient(RadL)[0].stconsts
 #print "Rad(V) = Rad(L)V"
 #RadV = V.radical()
 #print RadV
@@ -64,5 +64,5 @@ print L.quotient(RadL).stconsts
 
 #Lbar = L.subalgebra(L.computeQuotient(RadL))
 #Vbar = V.submodule(V.computeQuotient(RadV), L.computeQuotient(RadL), Lbar)
-#print V.findGenerator()
+print V.findGenerator()
 
