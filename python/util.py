@@ -1,4 +1,5 @@
 from nzmath import finitefield, vector, matrix
+import random
 
 GF = lambda n: finitefield.FinitePrimeField(n)
 GF2 = finitefield.FinitePrimeField(2)
@@ -25,6 +26,14 @@ def print_matrices(l):
     strs = [ str(A).split('\n') for A in l ]
     for i in range(l[0].row):
         print "\t".join(x[i] for x in strs)
+
+def random_element(field):
+    p = field.getCharacteristic()
+    return field.createElement(random.randint(0, p))
+
+def random_matrix(dim, field):
+    R = matrix.Matrix(dim, dim, field)
+    return R.map(lambda x: random_element(field))
         
 if __name__ == "__main__":
     print range1(10)

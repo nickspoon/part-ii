@@ -3,15 +3,6 @@ from linalg import *
 from util import *
 from itertools import product
 import algebra
-import random
-
-def random_element(field):
-    p = field.getCharacteristic()
-    return field.createElement(random.randint(0, p))
-
-def random_matrix(dim, field):
-    R = matrix.Matrix(dim, dim, field)
-    return R.map(lambda x: random_element(field))
 
 # Given two lists of matrices {A_1, ... A_n}, {B_1, ..., B_n}, find X
 # such that for all i = 1..n, X * A_i * X^-1 = B_i 
@@ -62,9 +53,9 @@ if __name__ == "__main__":
         print "Not invertible"
 
     print "Simultaneous similarity test"
-    dim = 3
-    n = 10
-    field = GF(prime.randPrime(1))
+    dim = 7
+    n = 4
+    field = GF(prime.randPrime(3))
     invertible = True
     X = random_matrix(dim, field)
     try:
