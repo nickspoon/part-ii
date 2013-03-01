@@ -53,7 +53,7 @@ if __name__ == "__main__":
         print "Not invertible"
 
     print "Simultaneous similarity test"
-    dim = 25
+    dim = 20
     n = 5
     field = GF(prime.randPrime(1))
     invertible = True

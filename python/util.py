@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-from nzmath import finitefield, vector, matrix
-import random
-=======
 from nzmath import finitefield, vector, matrix, prime
 import numpy as np
->>>>>>> 37c444d6e76639ec55769baa5c4ef98e8e541468
 
 GF = lambda n: finitefield.FinitePrimeField(n)
 GF2 = finitefield.FinitePrimeField(2)
@@ -36,7 +31,6 @@ def print_matrices(l):
     for i in range(l[0].row):
         print "\t".join(x[i] for x in strs)
 
-<<<<<<< HEAD
 def random_element(field):
     p = field.getCharacteristic()
     return field.createElement(random.randint(0, p))
@@ -47,10 +41,9 @@ def random_matrix(dim, field):
 
 def random_vector(dim, field):
     return vector.Vector([ random_element(field) for x in range1(dim) ])
-=======
+
 def numpy_to_nzmath(arr, field):
     return matrix.Matrix(arr.shape[0], arr.shape[1], arr.tolist(), field)
->>>>>>> 37c444d6e76639ec55769baa5c4ef98e8e541468
         
 if __name__ == "__main__":
     print range1(10)

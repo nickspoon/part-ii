@@ -3,7 +3,7 @@ import networkx as nx
 import numpy as np
 from subprocess import Popen, PIPE
 import tempfile
-from util import numpy_to_nzmath, next_prime_field
+from util import numpy_to_nzmath, next_prime_field, GF
 from similarity import similarity
 
 STABCOL_PATH="../../stabprogs/stabcol"
@@ -82,10 +82,13 @@ def isomorphic(G1, G2):
     if L1 != L2:
         print "Non-isomorphic: different stable colouring."
         return False
-    field = next_prime_field(len(B1))
+    #field = next_prime_field(len(B1))
+    field = GF(3)
+    p = field.getCharacteristic()
+    print "Testing similarity over GF(%d)" % p
     if similarity([numpy_to_nzmath(M, field) for M in B1],
                 [numpy_to_nzmath(M, field) for M in B2], field) == None:
-        print "Non-isomorphic: no simultaneous similarity in GF(%d)." % field.getCharacteristic()
+        print "Non-isomorphic: no simultaneous similarity in GF(%d)." % p
         return False
     print "Isomorphic or too difficult to tell."
     return True

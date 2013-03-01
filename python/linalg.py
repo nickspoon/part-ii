@@ -98,7 +98,8 @@ class MatrixLinearEquations(LinearEquations):
                     for w in K])
     
     def solution(self):
-        return self.solve()[0]
+        v = super(MatrixLinearEquations, self).solution()
+        return unflatten_matrix(v, self.row, self.col)
     
     def kernel(self):
         return self.solve()[1]
