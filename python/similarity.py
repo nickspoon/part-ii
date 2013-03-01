@@ -53,9 +53,9 @@ if __name__ == "__main__":
         print "Not invertible"
 
     print "Simultaneous similarity test"
-    dim = 7
-    n = 4
-    field = GF(prime.randPrime(3))
+    dim = 25
+    n = 5
+    field = GF(prime.randPrime(1))
     invertible = True
     X = random_matrix(dim, field)
     try:
