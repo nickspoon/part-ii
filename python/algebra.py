@@ -177,8 +177,7 @@ class Module(StructureConstantObject):
                     except matrix.NoInverseImage:
                         a = None
                     if a is None:
-                        return ffvector([ 1 if x == j else 0 for x in range1(self.dim) ],
-                                             self.field)
+                        return self.unit[j]
         return None
         
     def reflexiveEndomorphism(self, v):

@@ -34,6 +34,9 @@ def random_element(field):
 def random_matrix(dim, field):
     R = matrix.Matrix(dim, dim, field)
     return R.map(lambda x: random_element(field))
+
+def random_vector(dim, field):
+    return vector.Vector([ random_element(field) for x in range1(dim) ])
         
 if __name__ == "__main__":
     print range1(10)
