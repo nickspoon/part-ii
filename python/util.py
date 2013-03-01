@@ -1,7 +1,9 @@
-from nzmath import finitefield, vector, matrix
+from nzmath import finitefield, vector, matrix, prime
+import numpy as np
 
 GF = lambda n: finitefield.FinitePrimeField(n)
 GF2 = finitefield.FinitePrimeField(2)
+next_prime_field = lambda n: GF(prime.nextPrime(n))
 
 class DimensionError(vector.VectorSizeError, matrix.MatrixSizeError):
     pass
@@ -12,6 +14,9 @@ def matrixToSet(X):
 def ffvector(compo, field):
     ffcmp = map(field.createElement, compo)
     return vector.Vector(ffcmp)
+    
+def ffmatrix(M, field):
+    return M.map(field.createElement)
 
 def range1(start, stop=None, step=None):
     if stop is None:
@@ -25,6 +30,9 @@ def print_matrices(l):
     strs = [ str(A).split('\n') for A in l ]
     for i in range(l[0].row):
         print "\t".join(x[i] for x in strs)
+
+def numpy_to_nzmath(arr, field):
+    return matrix.Matrix(arr.shape[0], arr.shape[1], arr.tolist(), field)
         
 if __name__ == "__main__":
     print range1(10)
