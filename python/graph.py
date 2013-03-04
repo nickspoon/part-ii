@@ -77,17 +77,21 @@ def isomorphic(G1, G2):
         print "Non-isomorphic: different number of nodes."
         return False
     [B1, B2] = stable_colouring([G1, G2])
+    print "%d colours found." % len(B1)
     L1 = [np.sum(M) for M in B1]
     L2 = [np.sum(M) for M in B2]
     if L1 != L2:
         print "Non-isomorphic: different stable colouring."
-        return False
+        #return False
     #field = next_prime_field(len(B1))
-    field = GF(3)
+    field = GF(2)
     p = field.getCharacteristic()
     print "Testing similarity over GF(%d)" % p
-    if similarity([numpy_to_nzmath(M, field) for M in B1],
-                [numpy_to_nzmath(M, field) for M in B2], field) == None:
+    # Convert to numpy matrices, ignoring colours with zero entries
+    C1 = [numpy_to_nzmath(B1[i], field) for i in range(len(B1)) if L1[i] != 0 ]
+    C2 = [numpy_to_nzmath(B2[i], field) for i in range(len(B2)) if L2[i] != 0 ]
+    assert len(C1) == len(C2)
+    if similarity(C1, C2, field) == None:
         print "Non-isomorphic: no simultaneous similarity in GF(%d)." % p
         return False
     print "Isomorphic or too difficult to tell."

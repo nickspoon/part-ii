@@ -1,5 +1,6 @@
 from nzmath import finitefield, vector, matrix, prime
 import numpy as np
+import random
 
 GF = lambda n: finitefield.FinitePrimeField(n)
 GF2 = finitefield.FinitePrimeField(2)
@@ -44,6 +45,10 @@ def random_vector(dim, field):
 
 def numpy_to_nzmath(arr, field):
     return matrix.Matrix(arr.shape[0], arr.shape[1], arr.tolist(), field)
+
+def nzmath_to_numpy(M):
+    Z = M.map(lambda x: x.getResidue())
+    return np.array([x for x in Z.compo], int)
         
 if __name__ == "__main__":
     print range1(10)

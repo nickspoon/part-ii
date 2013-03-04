@@ -29,9 +29,19 @@ class LinearEquations(object):
         
     # x: vector of length n; y: scalar
     def addEquation(self, x, y):
-        X = matrix.Matrix(1, len(x), x.compo, self.field)
+        X = x.toMatrix()
         Y = vector.Vector([y])
         self.addEquations(X, Y)
+    
+    # For two solution spaces A, B for some matrix X, find coefficients
+    # a_i, b_j such that sum_i a_i * A_i = sum_j b_j * B_j
+    def intersect(self, S1, S2):
+        cvectors = [ flatten_matrix(S) for S in S1 ] + \
+                    [ flatten_matrix(-S) for S in S2 ]
+        coeffs = matrix.Matrix(len(cvectors[0]), len(cvectors),
+                                cvectors, self.field)
+        v = flatten_matrix(matrix.zeroMatrix(S1[0].row, S1[0].column))
+        self.addEquations(coeffs, v)
     
     # Returns a tuple (solution, kernel)
     def solve(self):
@@ -42,7 +52,9 @@ class LinearEquations(object):
         return self.A.inverseImage(self.b)
     
     def kernel(self):
-        return self.A.kernel()
+        K = self.A.kernel()
+        if K is None: return None
+        return [ K[i] for i in range1(K.column) ]
 
 # As above, but the variables form a matrix.
 class MatrixLinearEquations(LinearEquations):
@@ -99,10 +111,12 @@ class MatrixLinearEquations(LinearEquations):
     
     def solution(self):
         v = super(MatrixLinearEquations, self).solution()
-        return unflatten_matrix(v, self.row, self.col)
+        return unflatten_matrix(v[1], self.row, self.col)
     
     def kernel(self):
-        return self.solve()[1]
+        K = super(MatrixLinearEquations, self).kernel()
+        return [unflatten_matrix(w, self.row, self.col)
+                    for w in K]
 
 # Flatten a matrix column-wise into a vector
 # e.g. [ [ a b ], [ c d ] ] => [ a c b d ]
@@ -117,6 +131,17 @@ def unflatten_matrix(v, row, col):
         raise DimensionError("Incorrect matrix dimensions supplied.")
     compo = [ vector.Vector(v.compo[i:i+row]) for i in range(0, len(v.compo), row) ]
     return matrix.Matrix(row, col, compo)
+
+def intersect_solutions(S1, S2):
+    if not S1 or not S2: return []
+    field = S1[0].coeff_ring
+    lineq = LinearEquations(field, len(S1) + len(S2))
+    lineq.intersect(S1, S2)
+    K = lineq.kernel()
+    if K is None: return []
+    Kp = [ vector.Vector(v.compo[0:len(S1)]) for v in K ]
+    intersection = [ vector_to_matrix(k, S1) for k in Kp ]
+    return [ X for X in intersection if X != matrix.zeroMatrix(X.row) ]
 
 # Reduce the set of column vectors X to a basis
 def basis_reduce(X):
