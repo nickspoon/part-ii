@@ -6,7 +6,7 @@ import tempfile
 from util import *
 from similarity import similarity
 
-STABCOL_PATH="../../stabprogs/stabcol"
+STABCOL_PATH="../stabprogs/stabcol"
 
 # Load the nth graph from a graph6 file
 def load_graph(fn, n):
