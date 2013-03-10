@@ -29,15 +29,25 @@ def range1(start, stop=None, step=None):
         
 def print_matrices(l):
     strs = [ str(A).split('\n') for A in l ]
+    maxlen = max(len(x) for x in strs)
+    stlen = len(strs[0][0])
+    pad = "-" * stlen
+    for x in strs:
+        x += [ pad ] * (maxlen - len(x))
     for i in range(l[0].row):
         print "\t".join(x[i] for x in strs)
 
 def random_element(field):
     p = field.getCharacteristic()
+    if p == 0:
+        return field.createElement(random.randint(0, 3))
     return field.createElement(random.randint(0, p))
 
-def random_matrix(dim, field):
-    R = matrix.Matrix(dim, dim, field)
+def random_matrix(row, col, field=None):
+    if field is None:
+        field = col
+        col = row
+    R = matrix.Matrix(row, col, field)
     return R.map(lambda x: random_element(field))
 
 def random_vector(dim, field):
@@ -49,6 +59,12 @@ def numpy_to_nzmath(arr, field):
 def nzmath_to_numpy(M):
     Z = M.map(lambda x: x.getResidue())
     return np.array([x for x in Z.compo], int)
+    
+def pack_matrix(M):
+    return (nzmath_to_numpy(M), M.coeff_ring.getCharacteristic())
+
+def unpack_matrix((X, p)):
+    return numpy_to_nzmath(X, GF(p))
         
 if __name__ == "__main__":
     print range1(10)

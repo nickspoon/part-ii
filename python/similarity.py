@@ -9,12 +9,6 @@ import pickle
 
 PROCESSES=8
 
-def pack_matrix(M):
-    return (nzmath_to_numpy(M), M.coeff_ring.getCharacteristic())
-
-def unpack_matrix((X, p)):
-    return numpy_to_nzmath(X, GF(p))
-
 def weaksim((Ap, Bp)):
     try:
         A = unpack_matrix(Ap)
@@ -126,9 +120,9 @@ if __name__ == "__main__":
         print "Not invertible"
 
     print "Simultaneous similarity test"
-    dim = 12
-    n = 5
-    field = GF(prime.randPrime(2))
+    dim = 4
+    n = 2
+    field = GF(prime.randPrime(1))
     invertible = True
     X = random_matrix(dim, field)
     try:

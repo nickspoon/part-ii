@@ -2,6 +2,7 @@ from nzmath import matrix, vector
 from linalg import *
 from util import *
 from itertools import product
+from multiprocessing import Pool
 import math
 
 class StructureConstantObject(object):
@@ -87,8 +88,8 @@ class Algebra(StructureConstantObject):
         stconsts = struct_from_basis(field, Lbasis)
         return cls(field, stconsts)
 
-    def __init__(self, field, stconsts, ss=False):
-        self.semisimple = ss
+    def __init__(self, field, stconsts):
+        self.semisimple = False
         super(Algebra, self).__init__(field, stconsts)
     
     def radical(self):
@@ -234,6 +235,8 @@ class Module(StructureConstantObject):
             if RadL is not None:
                 RadV = self.radical(RadL)
                 Lbar, LB = self.algebra.quotient(RadL)
+                # Lbar is semisimple since we have modded out its radical
+                Lbar.semisimple = True
                 Vbar, VB = self.quotient(RadV, LB, Lbar)
                 x = Vbar.findGenerator()
                 if x is not None:
@@ -284,6 +287,12 @@ def compute_g(p, i, m):
     assert(f == int(f))
     # Obtain a result in F by taking modulo p
     return (int(f) % p)
+    
+def decompose_worker((m1p, m2p, (Lp, Up, Pp))):
+    (m1, m2, L, U, P) = map(unpack_matrix, (m1p, m2p, Lp, Up, Pp))
+    result = m1 * m2
+    v = decompose(result, (L, U, P), result.coeff_ring)
+    return pack_matrix(v.toMatrix(True))
 
 # Computes the structure constant matrices for multiplication over bases
 # basis1 = {A_1, ..., A_n}, basis2 = {V_1, ..., V_m} so that
@@ -293,9 +302,20 @@ def struct_from_basis(field, basis1, basis2=None):
     n = len(basis1)
     m = len(basis2)
     stconsts = [ matrix.Matrix(m, m, field) for i in range(n) ]
+    LUb = LUbasis(basis2, field)
+    packedLU = map(pack_matrix, LUb)
+    packedb1 = map(pack_matrix, basis1)
+    packedb2 = map(pack_matrix, basis2)
+    pool = Pool(processes=8)
+    vects = pool.map(decompose_worker,
+            [ (packedb1[i], packedb2[j], packedLU)
+                for (i, j) in product(range(n), range(m)) ])
+    unpacked = map(unpack_matrix, vects)
     for (i, j) in product(range(n), range(m)):
-        result = basis1[i] * basis2[j]
-        stconsts[i][j+1] = decompose(result, basis2, field)[1]
-        assert vector_to_matrix(stconsts[i][j+1], basis2) == result
+        stconsts[i].setColumn(j+1, unpacked[i * m + j][1])
+    #    args = map(pack_matrix, (basis1[i], basis2[j], L, U, P))
+    #    stconsts[i].setColumn(j+1, unpack_matrix(decompose_worker(*args))[1])
+    #    assert vector_to_matrix(stconsts[i][j+1], basis2) == basis1[i] * basis2[j]
+    pool.close()
     return stconsts
     

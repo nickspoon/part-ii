@@ -13,6 +13,7 @@ class LinearEquations(object):
         self.dim = dim
         self.A = None
         self.b = None
+        print "Solving a linear equation in %d variables" % dim
         
     # X: k*n matrix; y: vector of length k
     def addEquations(self, X, y):
@@ -162,13 +163,43 @@ def vector_to_matrix(v, B):
         M += v[i] * B[i-1]
     return M
 
+# Forward/back-substitution
+def substitute(M, v, backward=False):
+    x = vector.Vector([ M.coeff_ring.zero for i in range1(M.column) ])
+    rows = list(range1(M.column))
+    if backward: rows.reverse()
+    for k in range(len(rows)):
+        i = rows[k]
+        y = v[i] - sum(x[j] * M[i,j] for j in rows[:k])
+        x[i] = y * M[i,i].inverse()
+    return x
+    
 # Decompose a matrix M into a linear combination of basis elements
 # For basis {A_1, ..., A_n}, where M = sum_{k=1..n} a_k * A_k, return (a_k)
-def decompose(M, basis, field):
-    # We could avoid redundancy by only computing coefficients once per basis.
-    A = matrix.Matrix(M.row * M.column, len(basis),
+def decompose(M, (L, U, P), field):
+    v = flatten_matrix(M)
+    # We want to find x s.t. Ax = v. We have that P * A = L * U.
+    # Therefore we know L * U * x = P * v.
+    # First compute w = P * v
+    w = P * v
+    # Next solve Ly = w by forward substitution
+    y = substitute(L, w)
+    #assert L * y == w
+    # Then Ux = y by backward substitution
+    x = substitute(U, y, backward=True)
+    #assert U * x == y
+    return x
+
+# Given a matrix basis A_1 ... A_n, construct a matrix A = [A*1|...|A*n]
+# where A*i is A_i flattened to a vector, and return (L, U, P, At) such that
+# P * At * A = L * U, where P is a permutation matrix, and L and U are resp.
+# upper and lower triangular.
+def LUbasis(basis, field):
+    dim = basis[0].row * basis[0].column
+    A = matrix.Matrix(dim, len(basis),
             [ flatten_matrix(B) for B in basis ], field)
-    return A.inverseImage(flatten_matrix(M))
+    (L, U, P) = A.LUPDecomposition()
+    return (L, U, P)
 
 # Given a matrix X and list of indices l, return a matrix Y containing
 # only the rows and columns of X whose indices are in l.    
