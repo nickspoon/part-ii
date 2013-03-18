@@ -1,6 +1,8 @@
 from nzmath import finitefield, vector, matrix, prime
+from nzmath.rational import theIntegerRing
 import numpy as np
 import random
+from math import ceil
 
 GF = lambda n: finitefield.FinitePrimeField(n)
 GF2 = finitefield.FinitePrimeField(2)
@@ -59,12 +61,27 @@ def numpy_to_nzmath(arr, field):
 def nzmath_to_numpy(M):
     Z = M.map(lambda x: x.getResidue())
     return np.array([x for x in Z.compo], int)
+
+# Given a matrix M and integer k, return M**k over Z using numpy
+def numpy_matrix_pow(M, k):
+    X = nzmath_to_numpy(M)
+    Y = np.linalg.matrix_power(X, k)
+    return numpy_to_nzmath(Y, theIntegerRing)
     
 def pack_matrix(M):
     return (nzmath_to_numpy(M), M.coeff_ring.getCharacteristic())
 
 def unpack_matrix((X, p)):
     return numpy_to_nzmath(X, GF(p))
+
+# Given a list l, return a list of n equally-sized sublists of l
+def nchunks(l, n):
+    size = (len(l) + n - 1) / n
+    return chunks(l, size)
+
+# Given a list l, return a list of sublists of l of length size
+def chunks(l, size):
+    return (l[i:i+size] for i in range(0, len(l), size))
         
 if __name__ == "__main__":
     print range1(10)

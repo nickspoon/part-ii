@@ -2,8 +2,9 @@ from nzmath import matrix, vector
 from linalg import *
 from util import *
 from itertools import product
-from multiprocessing import Pool
+import pool
 import math
+import sys
 
 class StructureConstantObject(object):
     def __init__(self, field, stconsts):
@@ -103,9 +104,14 @@ class Algebra(StructureConstantObject):
         I.deleteColumn(len(B))
         for i in range1(0, l):
             M = matrix.Matrix(len(B), I.column, self.field)
-            for j in range1(len(B)):
-                for k in range1(I.column):
-                    M[j,k] = compute_g(p, i, self.toMatrix(I[k], B)*B[j-1])
+            for k in range1(I.column):
+                X = self.toMatrix(I[k], B)
+                Xp = pack_matrix(X)
+                work = [(p, i, Xp, pack_matrix(B[j-1])) for j in range1(len(B))]
+                vec = pool.pool().map(compute_g_worker, work)
+                M.setColumn(k, vector.Vector(vec))
+                #for j in range1(len(B)):
+                #    M[j,k] = compute_g(p, i, X*B[j-1])
             basis = M.kernel()
             if basis is None:
                 self.semisimple = True
@@ -140,6 +146,7 @@ class Module(StructureConstantObject):
     
     def __init__(self, field, stconsts, alg):
         self.algebra = alg
+        self.endo = None
         super(Module, self).__init__(field, stconsts)
         
     # This matrix represents the coefficients of a system of linear equations
@@ -161,6 +168,7 @@ class Module(StructureConstantObject):
     def rankMax(self, v):
         # Find the first w in basis(V) such that Ann(V)w is not a subset of lambda*v
         # If v is of maximal rank, this procedure returns None, otherwise it returns w.
+        
         # Save us computing the multiplicative matrix twice
         m = self.multiplicativeMatrix(v)
         ann = self.computeAnnihilators(v, m)
@@ -180,6 +188,19 @@ class Module(StructureConstantObject):
                     if a is None:
                         return self.unit[j]
         return None
+    
+    def endomorphismSpace(self):
+        # Return a basis of the space of all endomorphisms of this algebra
+        lineq = MatrixLinearEquations(self.field, self.dim, self.dim)
+        for M in self.stconsts:
+            lineq.weakSimilarity(M)
+        self.endo = lineq.kernel()
+        return self.endo
+    
+    def endomorphismSpace2(self):
+        endspace = parallel_weaksim(self.stconsts)
+        self.endo = ParallelIntersection(endspace.get(), packed=True).get()
+        return self.endo
         
     def reflexiveEndomorphism(self, v):
         # Calculate a projection pi which is a lambda-endomorphism of V, such 
@@ -187,16 +208,19 @@ class Module(StructureConstantObject):
         # equations.
         
         # First guarantee that pi is a lambda-endomorphism
-        lineq = MatrixLinearEquations(self.field, self.dim, self.dim)
-        for M in self.stconsts:
-            lineq.weakSimilarity(M)
+        if self.endo is None:
+            self.endomorphismSpace2()
         
         # Add the condition pi(v) = v
-        lineq.matrixEquation(v, v)
-        solspace = lineq.solve()
+        lineq = LinearEquations(self.field, len(self.endo))
+        lineq.matEqSpace(v, self.endo)
+        (w, kernel) = lineq.solve()
+        X = vector_to_matrix(w, self.endo)
+        solspace = [ vector_to_matrix(k, self.endo)
+                        for k in kernel ]
         
         # Select a solution s.t. im(pi) = lambda*v
-        return self.imageOf(v, solspace)
+        return self.imageOf(v, (X, solspace))
         
     def imageOf(self, v, (X, kernel)):
         # Given a matrix X and basis X_1, ..., X_n defining a space S, find
@@ -231,13 +255,24 @@ class Module(StructureConstantObject):
     def findGenerator(self):
         # If the algebra is not known to be semisimple, compute the radical
         if not self.algebra.semisimple:
+            print >>sys.stderr, "Computing Rad(L)...",
             RadL = self.algebra.radical()
             if RadL is not None:
+                print >>sys.stderr, RadL.column, "dimension(s)"
+            else:
+                print >>sys.stderr, "None"
+            if RadL is not None:
+                print >>sys.stderr, "Computing Rad(V) = Rad(L)V"
                 RadV = self.radical(RadL)
+                print >>sys.stderr, "Computing quotient algebra L/RadL...",
                 Lbar, LB = self.algebra.quotient(RadL)
+                print >>sys.stderr, Lbar.dim, "dimension(s)"
                 # Lbar is semisimple since we have modded out its radical
                 Lbar.semisimple = True
+                print >>sys.stderr, "Computing quotient module V/RadV...",
                 Vbar, VB = self.quotient(RadV, LB, Lbar)
+                print Vbar.dim, "dimension(s)"
+                print >>sys.stderr, "Finding a generator in V/RadV"
                 x = Vbar.findGenerator()
                 if x is not None:
                     return VB * x
@@ -245,10 +280,13 @@ class Module(StructureConstantObject):
                     return None
         # Semisimple case
         v = matrix.unitMatrix(self.dim, self.field)[1]
+        print >>sys.stderr, "Have element v with rank", self.rank(v)
         w = self.rankMax(v)
         while w is not None:
+            print >>sys.stderr, "Finding reflexive endomorphism pi"
             pi = self.reflexiveEndomorphism(v)
             v += w - pi*w
+            print >>sys.stderr, "Have element v with rank", self.rank(v)
             w = self.rankMax(v)
         if self.rank(v) < self.dim: return None
         return v
@@ -280,18 +318,24 @@ class Module(StructureConstantObject):
         return Module(self.field, subconsts, alg), self.basisListMatrix(bv)
 
 def compute_g(p, i, m):
-    # Convert m to an integral matrix
-    M = m.map(lambda x: x.getResidue())
+    k = p**i
+    # Compute the kth power of m as an integral matrix
+    M = numpy_matrix_pow(m, k)
     # Compute f_i(M)
-    f = (M**(p**i)).trace()/(p**i)
+    f = M.trace()/k
     assert(f == int(f))
     # Obtain a result in F by taking modulo p
     return (int(f) % p)
+
+def compute_g_worker((p, i, Xp, Bp)):
+    X = unpack_matrix(Xp)
+    B = unpack_matrix(Bp)
+    return compute_g(p, i, X*B)
     
 def decompose_worker((m1p, m2p, (Lp, Up, Pp))):
     (m1, m2, L, U, P) = map(unpack_matrix, (m1p, m2p, Lp, Up, Pp))
     result = m1 * m2
-    v = decompose(result, (L, U, P), result.coeff_ring)
+    v = decompose(result, (L, U, P))
     return pack_matrix(v.toMatrix(True))
 
 # Computes the structure constant matrices for multiplication over bases
@@ -306,16 +350,12 @@ def struct_from_basis(field, basis1, basis2=None):
     packedLU = map(pack_matrix, LUb)
     packedb1 = map(pack_matrix, basis1)
     packedb2 = map(pack_matrix, basis2)
-    pool = Pool(processes=8)
-    vects = pool.map(decompose_worker,
+    vects = pool.pool().map(decompose_worker,
             [ (packedb1[i], packedb2[j], packedLU)
                 for (i, j) in product(range(n), range(m)) ])
     unpacked = map(unpack_matrix, vects)
     for (i, j) in product(range(n), range(m)):
         stconsts[i].setColumn(j+1, unpacked[i * m + j][1])
-    #    args = map(pack_matrix, (basis1[i], basis2[j], L, U, P))
-    #    stconsts[i].setColumn(j+1, unpack_matrix(decompose_worker(*args))[1])
     #    assert vector_to_matrix(stconsts[i][j+1], basis2) == basis1[i] * basis2[j]
-    pool.close()
     return stconsts
     

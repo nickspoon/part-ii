@@ -2,87 +2,65 @@ from nzmath import matrix, vector, prime
 from linalg import *
 from util import *
 from itertools import product
-from multiprocessing import Pool
-from math import ceil
 import algebra
 import pickle
+import pool
 
-PROCESSES=8
-
-def weaksim((Ap, Bp)):
-    try:
-        A = unpack_matrix(Ap)
-        if Bp is None: B = A
-        else: B = unpack_matrix(Bp)
-        lineq = MatrixLinearEquations(A.coeff_ring, A.row, A.column)
+def weaksim_packed_list(Aps, Bps):
+    As = map(unpack_matrix, Aps)
+    if Bps is None: Bs = As
+    else: Bs = map(unpack_matrix, Bps)
+    dim = As[0].row
+    field = As[0].coeff_ring
+    lineq = MatrixLinearEquations(field, dim, dim)
+    for (A, B) in zip(As, Bs):
         lineq.weakSimilarity(A, B)
-        return [ pack_matrix(M) for M in lineq.kernel() ]
-    except KeyboardInterrupt:
-        pass
+    result = lineq.kernel()
+    return map(pack_matrix, result)
 
-def chunks(l, n):
-    return (l[i:i+n] for i in range(0, len(l), int(ceil(len(l)/float(n)))))
+def compute_basis1(As, Bs):
+    dim = As[0].row
+    field = As[0].coeff_ring
+    # First compute the basis of the algebra L = { X | X*B_i = B_i*X }
+    lineq = MatrixLinearEquations(field, dim, dim)
+    for B in Bs:
+        lineq.weakSimilarity(B)
+    Lbasis = lineq.kernel()
+    # Next compute the basis of the L-module V = { X | X*A_i = B_i*X }
+    lineq = MatrixLinearEquations(field, dim, dim)
+    for (A, B) in zip(As, Bs):
+        lineq.weakSimilarity(A, B)
+    Vbasis = lineq.kernel()
+    return (Lbasis, Vbasis)
 
-def parallel_intersect(Lp):
-    L = [ map(unpack_matrix, X) for X in Lp ]
-    R = reduce(intersect_solutions, L)
-    return map(pack_matrix, R)
+def compute_basis2(As, Bs):
+    Lspaces = parallel_weaksim(Bs)
+    Vspaces = parallel_weaksim(As, Bs)
+    Lbasis = ParallelIntersection(Lspaces.get(), packed=True, nch=pool.PROCESSES/2)
+    Vbasis = ParallelIntersection(Vspaces.get(), packed=True, nch=pool.PROCESSES/2)
+    return (Lbasis.get(), Vbasis.get())
 
-#def weaksim(A, B=None):
-#    try:
-#        return A
-#    except KeyboardInterrupt:
-#        pass
+def compute_basis3(As, Bs):
+    Lspaces = pool.pool().apply_async(weaksim_packed_list,
+                    [map(pack_matrix, Bs), None])
+    Vspaces = pool.pool().apply_async(weaksim_packed_list,
+        [ map(pack_matrix, As), map(pack_matrix, Bs) ])
+    Lbasis = map(unpack_matrix, Lspaces.get())
+    Vbasis = map(unpack_matrix, Vspaces.get())
+    return (Lbasis, Vbasis)
 
 # Given two lists of matrices {A_1, ... A_n}, {B_1, ..., B_n}, find X
 # such that for all i = 1..n, X * A_i * X^-1 = B_i 
-def similarity(As, Bs, field):
-    pool = Pool(processes=PROCESSES)
+def similarity(As, Bs):
+    pool.start_pool()
 
     dim = As[0].row
+    field = As[0].coeff_ring
     for A in As: assert A.row == A.column == dim
     for B in Bs: assert B.row == B.column == dim
     assert len(As) == len(Bs)
     print "Simultaneous similarity over %d %dx%d matrices" % (len(As), dim, dim)
-    Lspaces = pool.map_async(weaksim, [ (pack_matrix(B), None) for B in Bs ])
-    Vspaces = pool.map_async(weaksim, 
-            [ (pack_matrix(A), pack_matrix(B)) for (A, B) in zip(As, Bs) ])
-    spaces = [ map(unpack_matrix, S) for S in Lspaces.get() ]
-    # First compute the basis of the algebra L = { X | X*B_i = B_i*X }
-    print "Computing the basis of algebra L = { X | X*B_i = B_i*X }"
-    #spaces = []
-    #for B in Bs:
-    #    lineq = MatrixLinearEquations(field, dim, dim)
-    #    lineq.weakSimilarity(B)
-    #    spaces.append(lineq.kernel())
-    spaces_div = chunks([map(pack_matrix, L) for L in spaces], PROCESSES)
-    Lspaces = pool.map_async(parallel_intersect, spaces_div)
-    
-    #lineq = MatrixLinearEquations(field, dim, dim)
-    #for B in Bs:
-    #    lineq.weakSimilarity(B)
-    #Lbasis = lineq.kernel()
-    
-    # Next compute the basis of the L-module V = { X | X*A_i = B_i*X }
-    spaces = [ map(unpack_matrix, S) for S in Vspaces.get() ]
-    spaces_div = chunks([map(pack_matrix, L) for L in spaces], PROCESSES)
-    Vspaces = pool.map_async(parallel_intersect, spaces_div)
-    print "Computing the basis of L-module V = { X | X*A_i = B_i*X }"
-#    spaces = []
-#    for (A, B) in zip(As, Bs):
-#        lineq = MatrixLinearEquations(field, dim, dim)
-#        lineq.weakSimilarity(A, B)
-#        spaces.append(lineq.kernel())
-    result = [ map(unpack_matrix, L) for L in Lspaces.get() ]
-    Lbasis = reduce(intersect_solutions, result)
-    result = [ map(unpack_matrix, L) for L in Vspaces.get() ]
-    Vbasis = reduce(intersect_solutions, result)
-    pool.close()
-    
-    #lineq = MatrixLinearEquations(field, dim, dim)
-    #for (A, B) in zip(As, Bs):
-    #    lineq.weakSimilarity(A, B)
-    #Vbasis = lineq.kernel()
+    (Lbasis, Vbasis) = compute_basis2(As, Bs)
     # If V = {}, then there is no solution.
     if not Vbasis:
         print "No X found such that X*A_i = B_i*X"
@@ -122,7 +100,7 @@ if __name__ == "__main__":
     print "Simultaneous similarity test"
     dim = 4
     n = 2
-    field = GF(prime.randPrime(1))
+    field = GF(2)
     invertible = True
     X = random_matrix(dim, field)
     try:
@@ -135,4 +113,4 @@ if __name__ == "__main__":
     print X
     print "invertible =", invertible
     print
-    print similarity(As, Bs, field)
+    print similarity(As, Bs)

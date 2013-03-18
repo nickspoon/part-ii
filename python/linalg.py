@@ -1,6 +1,7 @@
 from nzmath import matrix, vector, ring
 from util import *
 from itertools import product
+import pool
 
 # Class representing a system of linear equations.
 # The solution is x where self.A * x = self.b
@@ -13,7 +14,7 @@ class LinearEquations(object):
         self.dim = dim
         self.A = None
         self.b = None
-        print "Solving a linear equation in %d variables" % dim
+        print "Solving a linear equation system in %d variables" % dim
         
     # X: k*n matrix; y: vector of length k
     def addEquations(self, X, y):
@@ -44,6 +45,10 @@ class LinearEquations(object):
         v = flatten_matrix(matrix.zeroMatrix(S1[0].row, S1[0].column))
         self.addEquations(coeffs, v)
     
+    def matEqSpace(self, v, S):
+        coeffs = matrix.Matrix(len(v), len(S), [ B * v for B in S ])
+        self.addEquations(coeffs, v)
+    
     # Returns a tuple (solution, kernel)
     def solve(self):
         return self.A.solve(self.b)
@@ -51,6 +56,7 @@ class LinearEquations(object):
     # Returns a single solution
     def solution(self):
         return self.A.inverseImage(self.b)
+        #return LUPsolve(self.A, self.b)
     
     def kernel(self):
         K = self.A.kernel()
@@ -119,6 +125,24 @@ class MatrixLinearEquations(LinearEquations):
         return [unflatten_matrix(w, self.row, self.col)
                     for w in K]
 
+class ParallelIntersection:
+    def __init__(self, spaces, packed=False, nch=pool.PROCESSES):
+        if not packed: spaces = [map(pack_matrix, L) for L in spaces]
+        self.nch = nch
+        spaces_div = list(nchunks(spaces, nch))
+        for subl in spaces_div:
+            subl.sort(key=len)
+        self.result = pool.pool().map_async(intersect_worker, spaces_div)
+    
+    def get(self):
+        spaces = self.result.get()
+        if len(spaces) <= 2:
+            spc = [ map(unpack_matrix, L) for L in spaces ]
+            return reduce(intersect_solutions, spc)
+        else:
+            p = ParallelIntersection(spaces, packed=True, nch=self.nch/2)
+            return p.get()
+
 # Flatten a matrix column-wise into a vector
 # e.g. [ [ a b ], [ c d ] ] => [ a c b d ]
 def flatten_matrix(A):
@@ -132,6 +156,28 @@ def unflatten_matrix(v, row, col):
         raise DimensionError("Incorrect matrix dimensions supplied.")
     compo = [ vector.Vector(v.compo[i:i+row]) for i in range(0, len(v.compo), row) ]
     return matrix.Matrix(row, col, compo)
+    
+def weaksim_worker((Ap, Bp)):
+    try:
+        A = unpack_matrix(Ap)
+        if Bp is None: B = A
+        else: B = unpack_matrix(Bp)
+        lineq = MatrixLinearEquations(A.coeff_ring, A.row, A.column)
+        lineq.weakSimilarity(A, B)
+        return [ pack_matrix(M) for M in lineq.kernel() ]
+    except KeyboardInterrupt:
+        pass
+
+def parallel_weaksim(As, Bs=None):
+    if Bs is None: Bs = As
+    return pool.pool().map_async(weaksim_worker, 
+        [ (pack_matrix(A), pack_matrix(B)) for (A, B) in zip(As, Bs) ])
+
+def intersect_worker(Lp):
+    L = [ map(unpack_matrix, X) for X in Lp ]
+    print "Intersecting %d solution spaces" % len(L)
+    R = reduce(intersect_solutions, L)
+    return map(pack_matrix, R)
 
 def intersect_solutions(S1, S2):
     if not S1 or not S2: return []
@@ -176,8 +222,11 @@ def substitute(M, v, backward=False):
     
 # Decompose a matrix M into a linear combination of basis elements
 # For basis {A_1, ..., A_n}, where M = sum_{k=1..n} a_k * A_k, return (a_k)
-def decompose(M, (L, U, P), field):
+def decompose(M, (L, U, P)):
     v = flatten_matrix(M)
+    return LUPsubstitute(v, (L, U, P))
+
+def LUPsubstitute(v, (L, U, P)):
     # We want to find x s.t. Ax = v. We have that P * A = L * U.
     # Therefore we know L * U * x = P * v.
     # First compute w = P * v
@@ -188,6 +237,12 @@ def decompose(M, (L, U, P), field):
     # Then Ux = y by backward substitution
     x = substitute(U, y, backward=True)
     #assert U * x == y
+    return x
+
+def LUPsolve(A, b):
+    LUP = A.LUPDecomposition()
+    x = LUPsubstitute(b, LUP)
+    assert A * x == b
     return x
 
 # Given a matrix basis A_1 ... A_n, construct a matrix A = [A*1|...|A*n]

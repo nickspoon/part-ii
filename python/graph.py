@@ -10,8 +10,16 @@ STABCOL_PATH="../../stabprogs/stabcol"
 
 # Load the nth graph from a graph6 file
 def load_graph(fn, n):
-    L = nx.read_graph6_list(fn)
-    return L[n]
+    G = None
+    f = open(fn, "r")
+    for i, line in enumerate(f):
+        if i == n:
+            G = nx.parse_graph6(line.strip())
+            break
+    if G is None:
+        raise EOFError("Graph %d not found: EOF reached" % n)
+    f.close()
+    return G
 
 # Write a graph in a form STABCOL can process    
 def write_stabcol_input(G):
@@ -82,16 +90,16 @@ def isomorphic(G1, G2):
     L2 = [np.sum(M) for M in B2]
     if L1 != L2:
         print "Non-isomorphic: different stable colouring."
-        #return False
+        return False
     #field = next_prime_field(len(B1))
-    field = GF(2)
+    field = GF(5)
     p = field.getCharacteristic()
     print "Testing similarity over GF(%d)" % p
     # Convert to numpy matrices, ignoring colours with zero entries
     C1 = [numpy_to_nzmath(B1[i], field) for i in range(len(B1)) if L1[i] != 0 ]
     C2 = [numpy_to_nzmath(B2[i], field) for i in range(len(B2)) if L2[i] != 0 ]
     assert len(C1) == len(C2)
-    if similarity(C1, C2, field) == None:
+    if similarity(C1, C2) is None:
         print "Non-isomorphic: no simultaneous similarity in GF(%d)." % p
         return False
     print "Isomorphic or too difficult to tell."
