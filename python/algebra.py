@@ -190,7 +190,7 @@ class Module(StructureConstantObject):
         return None
     
     def endomorphismSpace(self):
-        # Return a basis of the space of all endomorphisms of this algebra
+        # Return a basis of the space of all endomorphisms of this module
         lineq = MatrixLinearEquations(self.field, self.dim, self.dim)
         for M in self.stconsts:
             lineq.weakSimilarity(M)
@@ -233,20 +233,22 @@ class Module(StructureConstantObject):
         # From the precondition, we know that pi = X + sum_i(d_i * X_i) for 
         # some d_i.
         S = self.spanningSet(v)
-        lineq = MatrixLinearEquations(self.field, self.dim, self.algebra.dim + 1)
+        lineq = LinearEquations(self.field, self.dim * self.algebra.dim + len(kernel))
         for row in range1(self.dim):
             for col in range1(self.dim):
-                # Matrix of coefficients of c_ij, plus an extra column for d_i
-                C = matrix.Matrix(self.dim, self.algebra.dim + 1, self.field)
+                # Matrix of coefficients of c_ij
+                C = matrix.FieldMatrix(self.dim, self.algebra.dim, self.field)
                 # sum_basis{(A[basis] * v)[row] * c[col,basis]}
                 for basis in range1(self.algebra.dim):
                     C[col,basis] = S[row,basis]
+                v = flatten_matrix(C)
                 # - sum_i{(X_i)[row,col] * d_i}
                 for i in range1(len(kernel)):
-                    C[i,C.column] = -kernel[i-1][row,col]
-                lineq.addCoefficientMatrix(C, X[row,col])
-        soln = lineq.solution()
-        d = soln[soln.column]
+                    v.compo.append(-kernel[i-1][row,col])
+                lineq.addEquation(v, X[row,col])
+        (soln, ker) = lineq.solve()
+        d = vector.Vector(soln.compo[-len(kernel):])
+        assert len(d) == len(kernel)
         Z = X.copy()
         for i in range1(len(kernel)):
             Z += d[i] * kernel[i-1]
@@ -356,6 +358,6 @@ def struct_from_basis(field, basis1, basis2=None):
     unpacked = map(unpack_matrix, vects)
     for (i, j) in product(range(n), range(m)):
         stconsts[i].setColumn(j+1, unpacked[i * m + j][1])
-    #    assert vector_to_matrix(stconsts[i][j+1], basis2) == basis1[i] * basis2[j]
+        assert vector_to_matrix(stconsts[i][j+1], basis2) == basis1[i] * basis2[j]
     return stconsts
     
