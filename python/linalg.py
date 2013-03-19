@@ -1,7 +1,7 @@
 from nzmath import matrix, vector, ring
 from util import *
 from itertools import product
-import pool
+import pool, types
 
 # Class representing a system of linear equations.
 # The solution is x where self.A * x = self.b
@@ -9,11 +9,12 @@ class LinearEquations(object):
     
     # field: Field over which to solve
     # dim: number of variables
-    def __init__(self, field, dim):
+    def __init__(self, field, dim, parallel=True):
         self.field = field
         self.dim = dim
         self.A = None
         self.b = None
+        self.parallel = parallel
         print "Solving a linear equation system in %d variables" % dim
         
     # X: k*n matrix; y: vector of length k
@@ -24,6 +25,9 @@ class LinearEquations(object):
             raise DimensionError("Matrix/vector size mismatch")
         if self.A is None:
             self.A = X.copy()
+            if self.parallel:
+                self.A._cohensSimplify = types.MethodType(parallel_cohens, self.A)
+                self.A.solve = types.MethodType(solve, self.A)
             self.b = y.copy()
         else:
             self.A.extendRow(X)
@@ -65,10 +69,10 @@ class LinearEquations(object):
 
 # As above, but the variables form a matrix.
 class MatrixLinearEquations(LinearEquations):
-    def __init__(self, field, row, col):
+    def __init__(self, field, row, col, parallel=True):
         self.row = row
         self.col = col
-        super(MatrixLinearEquations, self).__init__(field, row*col)
+        super(MatrixLinearEquations, self).__init__(field, row*col, parallel)
         
     def addCoefficientMatrix(self, A, n):
         self.addEquation(flatten_matrix(A), n)
@@ -143,6 +147,84 @@ class ParallelIntersection:
             p = ParallelIntersection(spaces, packed=True, nch=self.nch/2)
             return p.get()
 
+def parallel_cohens(self):
+    """
+    NS: Add some parallel processing to the cohensSimplify procedure
+    _cohensSimplify is a common process used in image() and kernel()
+
+    Return a tuple of modified matrix M, image data c and kernel data d.
+    """
+    print "pcohens"
+    M = self.copy()
+    c = [0] * (M.row + 1)
+    d = [-1] * (M.column + 1)
+    for k in range(1, M.column + 1):
+        for j in range(1, M.row + 1):
+            if not c[j] and M[j, k]:
+                break
+        else:           # not found j such that m(j, k)!=0 and c[j]==0
+            d[k] = 0
+            continue
+        top = -ring.inverse(M[j, k])
+        M[j, k] = -self.coeff_ring.one
+        for s in range(k + 1, M.column + 1):
+            M[j, s] = top * M[j, s]
+        Mjp = pack_vector(M.getRow(j))
+        work = [ (pack_vector(M.getRow(i)), Mjp, k)
+                    for i in range(1, M.row + 1)
+                    if i != j ]
+        result = [unpack_vector(v) for v in pool.pool().map(cohens_worker, work)]
+        i = 1
+        for v in result:
+            if i != j:
+                M.setRow(i, v)
+            else:
+                i += 1
+                M.setRow(i, v)
+            i += 1
+        c[j] = k
+        d[k] = j
+    return (M, c, d)
+
+def cohens_worker((Mip, Mjp, k)):
+    Mi = unpack_vector(Mip)
+    Mj = unpack_vector(Mjp)
+    top = Mi[k]
+    Mi[k] = Mi[1].getRing().zero
+    for s in range1(k + 1, len(Mi)):
+        Mi[s] = Mi[s] + top * Mj[s]
+    return pack_vector(Mi)
+
+def solve(self, B):  # modified Algorithm 2.3.4 of Cohen's book
+    """
+    Return solution X for self * X = B (B is a vector).
+    This function returns tuple (V, M) below.
+      V: one solution as vector
+      M: kernel of self as list of basis vectors.
+    If you want only one solution, use 'inverseImage'.
+
+    Warning: B should not be a matrix instead of a vector
+    """
+    M_1 = self.copy()
+    M_1.insertColumn(self.column + 1, B.compo)
+    M_1._cohensSimplify = types.MethodType(parallel_cohens, M_1)
+    V = M_1.kernel()
+    ker = []
+    flag = False
+    if not V:
+        raise NoInverseImage("no solution")
+    n = V.row
+    for j in range(1, V.column + 1):
+        if not bool(V[n, j]): # self's kernel
+            ker.append(vector.Vector([V[i, j] for i in range(1, n)]))
+        elif not(flag):
+            d = -ring.inverse(V[n, j])
+            sol = vector.Vector([V[i, j] * d for i in range(1, n)])
+            flag = True
+    if not(flag):
+        raise NoInverseImage("no solution")
+    return sol, ker
+
 # Flatten a matrix column-wise into a vector
 # e.g. [ [ a b ], [ c d ] ] => [ a c b d ]
 def flatten_matrix(A):
@@ -162,7 +244,7 @@ def weaksim_worker((Ap, Bp)):
         A = unpack_matrix(Ap)
         if Bp is None: B = A
         else: B = unpack_matrix(Bp)
-        lineq = MatrixLinearEquations(A.coeff_ring, A.row, A.column)
+        lineq = MatrixLinearEquations(A.coeff_ring, A.row, A.column, parallel=False)
         lineq.weakSimilarity(A, B)
         return [ pack_matrix(M) for M in lineq.kernel() ]
     except KeyboardInterrupt:
@@ -176,13 +258,13 @@ def parallel_weaksim(As, Bs=None):
 def intersect_worker(Lp):
     L = [ map(unpack_matrix, X) for X in Lp ]
     print "Intersecting %d solution spaces" % len(L)
-    R = reduce(intersect_solutions, L)
+    R = reduce(lambda x, y: intersect_solutions(x, y, False), L)
     return map(pack_matrix, R)
 
-def intersect_solutions(S1, S2):
+def intersect_solutions(S1, S2, parallel=True):
     if not S1 or not S2: return []
     field = S1[0].coeff_ring
-    lineq = LinearEquations(field, len(S1) + len(S2))
+    lineq = LinearEquations(field, len(S1) + len(S2), parallel=parallel)
     lineq.intersect(S1, S2)
     K = lineq.kernel()
     if K is None: return []
@@ -254,6 +336,7 @@ def LUbasis(basis, field):
     A = matrix.Matrix(dim, len(basis),
             [ flatten_matrix(B) for B in basis ], field)
     (L, U, P) = A.LUPDecomposition()
+    assert P * A == L * U
     return (L, U, P)
 
 # Given a matrix X and list of indices l, return a matrix Y containing
@@ -262,12 +345,13 @@ def rc_eliminate(X, l):
     return X.subMatrix(l, l)
 
 if __name__ == "__main__":
-    A = matrix.FieldMatrix(2, 3, [5, 2, 1, 2, 3, 1])
-    b = vector.Vector([4, 1])
+    A = matrix.FieldMatrix(2, 3, [5, 2, 1, 2, 3, 1], GF(7))
+    b = ffvector([4, 1], GF(7))
     lineq = LinearEquations(A.coeff_ring, 3)
     lineq.addEquations(A, b)
-    lineq.addEquation(vector.Vector([3, 1, 1]), 2)
+    lineq.addEquation(ffvector([3, 1, 1], GF(7)), 2)
     assert (lineq.A*lineq.solution())[1] == ffvector(lineq.b.compo, A.coeff_ring)
+    lineq.kernel()
     print A
     v = flatten_matrix(A)
     B = unflatten_matrix(v, A.row, A.column)
