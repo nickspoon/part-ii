@@ -5,6 +5,7 @@ from itertools import product
 import pool
 import math
 import sys
+from parallel import inject_parallel
 
 class StructureConstantObject(object):
     def __init__(self, field, stconsts):
@@ -57,6 +58,7 @@ class StructureConstantObject(object):
         for i in range1(self.dim):
             X = U.copy()
             X.extendColumn(I[i])
+            inject_parallel(X)
             if X.rank() > U.rank():
                 U = X
                 bv.append(i)
@@ -103,15 +105,17 @@ class Algebra(StructureConstantObject):
         I = matrix.unitMatrix(len(B), self.field)
         I.deleteColumn(len(B))
         for i in range1(0, l):
+            print >>sys.stderr, "Radical computation #%d" % i
             M = matrix.Matrix(len(B), I.column, self.field)
+            inject_parallel(M)
             for k in range1(I.column):
                 X = self.toMatrix(I[k], B)
                 Xp = pack_matrix(X)
                 work = [(p, i, Xp, pack_matrix(B[j-1])) for j in range1(len(B))]
                 vec = pool.pool().map(compute_g_worker, work)
                 M.setColumn(k, vector.Vector(vec))
-                #for j in range1(len(B)):
-                #    M[j,k] = compute_g(p, i, X*B[j-1])
+                for j in range1(len(B)):
+                    assert M[j,k] == compute_g(p, i, X*B[j-1])
             basis = M.kernel()
             if basis is None:
                 self.semisimple = True
@@ -246,7 +250,8 @@ class Module(StructureConstantObject):
                 for i in range1(len(kernel)):
                     v.compo.append(-kernel[i-1][row,col])
                 lineq.addEquation(v, X[row,col])
-        (soln, ker) = lineq.solve()
+        #(soln, ker) = lineq.solve()
+        soln = lineq.solution()[1]
         d = vector.Vector(soln.compo[-len(kernel):])
         assert len(d) == len(kernel)
         Z = X.copy()
@@ -257,7 +262,7 @@ class Module(StructureConstantObject):
     def findGenerator(self):
         # If the algebra is not known to be semisimple, compute the radical
         if not self.algebra.semisimple:
-            print >>sys.stderr, "Computing Rad(L)...",
+            print >>sys.stderr, "Computing Rad(L)..."
             RadL = self.algebra.radical()
             if RadL is not None:
                 print >>sys.stderr, RadL.column, "dimension(s)"
@@ -287,6 +292,7 @@ class Module(StructureConstantObject):
         while w is not None:
             print >>sys.stderr, "Finding reflexive endomorphism pi"
             pi = self.reflexiveEndomorphism(v)
+            assert pi * v == v
             v += w - pi*w
             print >>sys.stderr, "Have element v with rank", self.rank(v)
             w = self.rankMax(v)

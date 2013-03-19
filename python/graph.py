@@ -3,7 +3,7 @@ import networkx as nx
 import numpy as np
 from subprocess import Popen, PIPE
 import tempfile
-from util import numpy_to_nzmath, next_prime_field, GF
+from util import *
 from similarity import similarity
 
 STABCOL_PATH="../../stabprogs/stabcol"

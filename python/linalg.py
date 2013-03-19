@@ -1,7 +1,8 @@
 from nzmath import matrix, vector, ring
 from util import *
 from itertools import product
-import pool, types
+import pool
+from parallel import inject_parallel
 
 # Class representing a system of linear equations.
 # The solution is x where self.A * x = self.b
@@ -26,8 +27,7 @@ class LinearEquations(object):
         if self.A is None:
             self.A = X.copy()
             if self.parallel:
-                self.A._cohensSimplify = types.MethodType(parallel_cohens, self.A)
-                self.A.solve = types.MethodType(solve, self.A)
+                inject_parallel(self.A)
             self.b = y.copy()
         else:
             self.A.extendRow(X)
@@ -146,84 +146,6 @@ class ParallelIntersection:
         else:
             p = ParallelIntersection(spaces, packed=True, nch=self.nch/2)
             return p.get()
-
-def parallel_cohens(self):
-    """
-    NS: Add some parallel processing to the cohensSimplify procedure
-    _cohensSimplify is a common process used in image() and kernel()
-
-    Return a tuple of modified matrix M, image data c and kernel data d.
-    """
-    print "pcohens"
-    M = self.copy()
-    c = [0] * (M.row + 1)
-    d = [-1] * (M.column + 1)
-    for k in range(1, M.column + 1):
-        for j in range(1, M.row + 1):
-            if not c[j] and M[j, k]:
-                break
-        else:           # not found j such that m(j, k)!=0 and c[j]==0
-            d[k] = 0
-            continue
-        top = -ring.inverse(M[j, k])
-        M[j, k] = -self.coeff_ring.one
-        for s in range(k + 1, M.column + 1):
-            M[j, s] = top * M[j, s]
-        Mjp = pack_vector(M.getRow(j))
-        work = [ (pack_vector(M.getRow(i)), Mjp, k)
-                    for i in range(1, M.row + 1)
-                    if i != j ]
-        result = [unpack_vector(v) for v in pool.pool().map(cohens_worker, work)]
-        i = 1
-        for v in result:
-            if i != j:
-                M.setRow(i, v)
-            else:
-                i += 1
-                M.setRow(i, v)
-            i += 1
-        c[j] = k
-        d[k] = j
-    return (M, c, d)
-
-def cohens_worker((Mip, Mjp, k)):
-    Mi = unpack_vector(Mip)
-    Mj = unpack_vector(Mjp)
-    top = Mi[k]
-    Mi[k] = Mi[1].getRing().zero
-    for s in range1(k + 1, len(Mi)):
-        Mi[s] = Mi[s] + top * Mj[s]
-    return pack_vector(Mi)
-
-def solve(self, B):  # modified Algorithm 2.3.4 of Cohen's book
-    """
-    Return solution X for self * X = B (B is a vector).
-    This function returns tuple (V, M) below.
-      V: one solution as vector
-      M: kernel of self as list of basis vectors.
-    If you want only one solution, use 'inverseImage'.
-
-    Warning: B should not be a matrix instead of a vector
-    """
-    M_1 = self.copy()
-    M_1.insertColumn(self.column + 1, B.compo)
-    M_1._cohensSimplify = types.MethodType(parallel_cohens, M_1)
-    V = M_1.kernel()
-    ker = []
-    flag = False
-    if not V:
-        raise NoInverseImage("no solution")
-    n = V.row
-    for j in range(1, V.column + 1):
-        if not bool(V[n, j]): # self's kernel
-            ker.append(vector.Vector([V[i, j] for i in range(1, n)]))
-        elif not(flag):
-            d = -ring.inverse(V[n, j])
-            sol = vector.Vector([V[i, j] * d for i in range(1, n)])
-            flag = True
-    if not(flag):
-        raise NoInverseImage("no solution")
-    return sol, ker
 
 # Flatten a matrix column-wise into a vector
 # e.g. [ [ a b ], [ c d ] ] => [ a c b d ]

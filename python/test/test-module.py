@@ -10,6 +10,8 @@ def test_reflexive():
         pi = V.reflexiveEndomorphism(v)
         assert (pi * v == v), "pi(v) != v"
         w = random_vector(V.algebra.dim, V.field)
+        W = vector_to_matrix(w, V.stconsts)
+        assert (W * pi == pi * W), "Not an endomorphism"
 
 if __name__ == "__main__":
     mods = examples.generate_modules()

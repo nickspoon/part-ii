@@ -60,7 +60,7 @@ def similarity(As, Bs):
     for B in Bs: assert B.row == B.column == dim
     assert len(As) == len(Bs)
     print "Simultaneous similarity over %d %dx%d matrices" % (len(As), dim, dim)
-    (Lbasis, Vbasis) = compute_basis2(As, Bs)
+    (Lbasis, Vbasis) = compute_basis3(As, Bs)
     # If V = {}, then there is no solution.
     if not Vbasis:
         print "No X found such that X*A_i = B_i*X"
