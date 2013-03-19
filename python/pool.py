@@ -17,4 +17,6 @@ def check_pool():
     return (_pool is not None)
 
 def pool():
+    if _pool is None:
+        start_pool()
     return _pool

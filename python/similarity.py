@@ -12,7 +12,7 @@ def weaksim_packed_list(Aps, Bps):
     else: Bs = map(unpack_matrix, Bps)
     dim = As[0].row
     field = As[0].coeff_ring
-    lineq = MatrixLinearEquations(field, dim, dim)
+    lineq = MatrixLinearEquations(field, dim, dim, parallel=False)
     for (A, B) in zip(As, Bs):
         lineq.weakSimilarity(A, B)
     result = lineq.kernel()

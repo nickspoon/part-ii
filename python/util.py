@@ -74,6 +74,13 @@ def pack_matrix(M):
 def unpack_matrix((X, p)):
     return numpy_to_nzmath(X, GF(p))
 
+def pack_vector(v):
+    return ([ x.getResidue() for x in v.compo ], v[1].getModulus())
+
+def unpack_vector((l,m)):
+    field = GF(m)
+    return vector.Vector([ field.createElement(x) for x in l ])
+
 # Given a list l, return a list of n equally-sized sublists of l
 def nchunks(l, n):
     size = (len(l) + n - 1) / n
