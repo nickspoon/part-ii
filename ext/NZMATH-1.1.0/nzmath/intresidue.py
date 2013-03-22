@@ -38,7 +38,10 @@ class IntegerResidueClass(ring.CommutativeRingElement):
     def __mul__(self, other):
         if isinstance(other, IntegerResidueClass):
             if self.m == other.m:
-                return self.__class__(self.n * other.n, self.m)
+                try:
+                    return self.getRing().createElement(self.n * other.n)
+                except AttributeError:
+                    return self.__class__(self.n * other.n, self.m)
             if self.m % other.m == 0:
                 return IntegerResidueClass(self.n * other.n, other.m)
             elif other.m % self.m == 0:
@@ -108,7 +111,10 @@ class IntegerResidueClass(ring.CommutativeRingElement):
     def __add__(self, other):
         if isinstance(other, IntegerResidueClass):
             if self.m == other.m:
-                return self.__class__(self.n + other.n, self.m)
+                try:
+                    return self.getRing().createElement(self.n + other.n)
+                except AttributeError:
+                    return self.__class__(self.n + other.n, self.m)
             if self.m % other.m == 0:
                 return IntegerResidueClass(self.n + other.n, other.m)
             elif other.m % self.m == 0:
@@ -125,7 +131,10 @@ class IntegerResidueClass(ring.CommutativeRingElement):
     def __sub__(self, other):
         if isinstance(other, IntegerResidueClass):
             if self.m == other.m:
-                return self.__class__(self.n - other.n, self.m)
+                try:
+                    return self.getRing().createElement(self.n - other.n)
+                except AttributeError:
+                    return self.__class__(self.n - other.n, self.m)
             if self.m % other.m == 0:
                 return IntegerResidueClass(self.n - other.n, other.m)
             elif other.m % self.m == 0:

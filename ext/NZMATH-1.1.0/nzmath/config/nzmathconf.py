@@ -57,8 +57,8 @@ CHECK_SQLITE3 = True
 #HAVE_NET = False
 #CHECK_NET = False
 # The default values mean "I don't know; check it later":
-HAVE_NET = None
-CHECK_NET = True
+HAVE_NET = True
+CHECK_NET = False
 
 #
 # psyco
@@ -123,4 +123,4 @@ GRH = False
 #CHECK_DATADIR = False
 # The default values mean "I don't know; check it later":
 DATADIR = None
-CHECK_DATADIR = True
+CHECK_DATADIR = False

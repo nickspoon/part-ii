@@ -216,6 +216,7 @@ class FinitePrimeField(FiniteField):
         # mathematically Q_p = Q \ {r/s; gcd(r, s) == 1, gcd(s, p) > 1}
         # is more appropriate.
         self.registerModuleAction(rational.theRationalField, self._rat_times)
+        self.elements = {}
 
     @staticmethod
     def _int_times(integer, fpelem):
@@ -282,7 +283,10 @@ class FinitePrimeField(FiniteField):
 
         'seed' should be an integer.
         """
-        return FinitePrimeFieldElement(seed, self.char, modulus_is_prime=True)
+        if (seed % self.char) not in self.elements:
+            self.elements[seed % self.char] = \
+                 FinitePrimeFieldElement(seed, self.char, modulus_is_prime=True)
+        return self.elements[seed % self.char]
 
     def primitive_element(self):
         """

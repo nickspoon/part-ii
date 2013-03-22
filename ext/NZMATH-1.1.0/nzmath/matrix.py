@@ -1419,6 +1419,49 @@ class FieldMatrix(RingMatrix):
                     M[l, j] = M[l, j] - M[l, k] * M[i, j]
             k -= 1
         return M
+        
+    def LUPDecomposition(self):
+        """
+        LUPDecomposition() -> (L, U, P)
+        
+        L, U, P are matrices such that
+            P * self == L * U
+            L : lower triangular matrix
+            U : upper triangular matrix
+            P : permutation matrix
+        """
+
+        n = self.row
+        m = self.column
+        
+        A = self.copy()
+        P = unitMatrix(n, self.coeff_ring)
+        for i in range(1, m + 1):
+            if A[i, i] == self.coeff_ring.zero:
+                for j in range(i + 1, n + 1):
+                    if A[j, i] != self.coeff_ring.zero:
+                        A.swapRow(i, j)
+                        P.swapRow(i, j)
+                        break
+                if A[i, i] == self.coeff_ring.zero:
+                    raise NoInverse("Matrix is singular")
+            inv = ring.inverse(A[i, i])
+            for j in range(i + 1, n + 1):
+                A[j, i] = A[j, i] * inv
+                for k in range(i + 1, m + 1):
+                    A[j, k] = A[j, k] - A[j, i] * A[i, k]
+        # Extract matrices L, U
+        #L = unitMatrix(n, self.coeff_ring)
+        L = zeroMatrix(n, m, self.coeff_ring)
+        for i in range(1, m + 1):
+            L[i, i] = self.coeff_ring.one
+            for j in range(i + 1, n + 1):
+                L[j, i] = A[j, i]
+        U = zeroMatrix(m, m, self.coeff_ring)
+        for i in range(1, m + 1):
+            for j in range(1, i + 1):
+                U[j, i] = A[j, i]
+        return (L, U, P)
 
 
 class FieldSquareMatrix(RingSquareMatrix, FieldMatrix):
@@ -1574,7 +1617,6 @@ class FieldSquareMatrix(RingSquareMatrix, FieldMatrix):
                 for k in range(i, n + 1):
                     U[j, k] = U[j, k] - U[i, k] * L[j, i]
         return (L, U)
-
 
 class MatrixRing (ring.Ring):
     """
