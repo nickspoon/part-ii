@@ -27,8 +27,8 @@ class LinearEquations(object):
             raise DimensionError("Matrix/vector size mismatch")
         if self.A is None:
             self.A = X.copy()
-            if self.parallel:
-                inject_parallel(self.A)
+            #if self.parallel:
+            #    inject_parallel(self.A)
             self.b = y.copy()
         else:
             self.A.extendRow(X)
@@ -60,12 +60,12 @@ class LinearEquations(object):
         
     # Returns a single solution
     def solution(self):
-        #return self.A.inverseImage(self.b)[1]
-        return ffpack_interface.solution(self.A, self.b)[1]
+        return self.A.inverseImage(self.b)[1]
+        #return ffpack_interface.solution(self.A, self.b)[1]
     
     def kernel(self):
-        #K = self.A.kernel()
-        K = ffpack_interface.kernel(self.A)
+        K = self.A.kernel()
+        #K = ffpack_interface.kernel(self.A)
         if K is None: return None
         return [ K[i] for i in range1(K.column) ]
 
@@ -262,6 +262,14 @@ def LUbasis(basis, field):
     (L, U, P) = A.LUPDecomposition()
     assert P * A == L * U
     return (L, U, P)
+    
+def LQUPbasis(basis, field):
+    dim = basis[0].row * basis[0].column
+    A = matrix.Matrix(dim, len(basis),
+            [ flatten_matrix(B) for B in basis ], field)
+    LQUP = A.LQUPDecomposition()
+    #assert P * A == L * U
+    return LQUP
 
 # Given a matrix X and list of indices l, return a matrix Y containing
 # only the rows and columns of X whose indices are in l.    

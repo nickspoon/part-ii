@@ -107,15 +107,15 @@ class Algebra(StructureConstantObject):
         for i in range1(0, l):
             print >>sys.stderr, "Radical computation #%d" % i
             M = matrix.Matrix(len(B), I.column, self.field)
-            inject_parallel(M)
+            #inject_parallel(M)
             for k in range1(I.column):
                 X = self.toMatrix(I[k], B)
                 Xp = pack_matrix(X)
                 work = [(p, i, Xp, pack_matrix(B[j-1])) for j in range1(len(B))]
                 vec = pool.pool().map(compute_g_worker, work)
                 M.setColumn(k, vector.Vector(vec))
-                for j in range1(len(B)):
-                    assert M[j,k] == compute_g(p, i, X*B[j-1])
+                #for j in range1(len(B)):
+                #    assert M[j,k] == compute_g(p, i, X*B[j-1])
             basis = M.kernel()
             if basis is None:
                 self.semisimple = True
@@ -213,7 +213,7 @@ class Module(StructureConstantObject):
         
         # First guarantee that pi is a lambda-endomorphism
         if self.endo is None:
-            self.endomorphismSpace2()
+            self.endomorphismSpace()
         
         # Add the condition pi(v) = v
         lineq = LinearEquations(self.field, len(self.endo))
@@ -346,6 +346,13 @@ def decompose_worker((m1p, m2p, (Lp, Up, Pp))):
     v = decompose(result, (L, U, P))
     return pack_matrix(v.toMatrix(True))
 
+def decompose_worker2((m1p, m2p, LUp, PQ, rank)):
+    (m1, m2, LU) = map(unpack_matrix, (m1p, m2p, LUp))
+    result = m1 * m2
+    v = flatten_matrix(result)
+    x = LU.LQUPSolve(PQ, rank, v)
+    return pack_matrix(x.toMatrix(True))
+
 # Computes the structure constant matrices for multiplication over bases
 # basis1 = {A_1, ..., A_n}, basis2 = {V_1, ..., V_m} so that
 # A_i * V_j = sum_k (eta_i,j^k * V_k)
@@ -354,16 +361,17 @@ def struct_from_basis(field, basis1, basis2=None):
     n = len(basis1)
     m = len(basis2)
     stconsts = [ matrix.Matrix(m, m, field) for i in range(n) ]
-    LUb = LUbasis(basis2, field)
-    packedLU = map(pack_matrix, LUb)
+    #LUb = LUbasis(basis2, field)
+    (LQUP, PQ, rank) = LQUPbasis(basis2, field)
+    packedLU = pack_matrix(LQUP)
     packedb1 = map(pack_matrix, basis1)
     packedb2 = map(pack_matrix, basis2)
-    vects = pool.pool().map(decompose_worker,
-            [ (packedb1[i], packedb2[j], packedLU)
+    vects = pool.pool().map(decompose_worker2,
+            [ (packedb1[i], packedb2[j], packedLU, PQ, rank)
                 for (i, j) in product(range(n), range(m)) ])
     unpacked = map(unpack_matrix, vects)
     for (i, j) in product(range(n), range(m)):
         stconsts[i].setColumn(j+1, unpacked[i * m + j][1])
-        assert vector_to_matrix(stconsts[i][j+1], basis2) == basis1[i] * basis2[j]
+        #assert vector_to_matrix(stconsts[i][j+1], basis2) == basis1[i] * basis2[j]
     return stconsts
     

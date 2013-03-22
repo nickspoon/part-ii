@@ -49,3 +49,27 @@ extern "C" int solve(const int32_t *mat_in, const int32_t* vect_in,
     //write_field(F, cerr<<"result = "<<endl, result, row, 1, 1);
     return info;
 }
+
+extern "C" int LQUP(int32_t *mat_in, const size_t row, const size_t col,
+                        const int32_t p, size_t* P, size_t* Q) {
+    Field F(p);
+    
+    Element* M = (Element*)mat_in;
+    size_t rank = LUdivine(F, FFLAS::FflasNonUnit, FFLAS::FflasNoTrans,
+                            row, col, M, col, P, Q, FfpackLQUP);
+    return rank;
+}
+
+extern "C" int LQUPsolve(const int32_t *LU_in, const int32_t *vect_in,
+                const size_t row, const size_t col, const size_t* P,
+                const size_t* Q, const int32_t p, const size_t rank,
+                int32_t* result) {
+    Field F(p);
+    
+    Element* LU = (Element*)LU_in;
+    Element* v = (Element*)vect_in;
+    int info;
+    fgetrs(F, FFLAS::FflasLeft, row, col, 1, rank, LU, col,
+                 P, Q, result, 1, v, 1, &info);
+    return info;
+}

@@ -2,7 +2,8 @@ from __future__ import division
 
 import nzmath.ring as ring
 import nzmath.vector as vector
-
+import finitefield
+import ffpack_interface
 
 class Matrix(object):
     """
@@ -1245,6 +1246,9 @@ class FieldMatrix(RingMatrix):
         Return a Matrix whose column vectors are one basis of self's kernel,
         or return None if self's kernel is 0.
         """
+        # For finite prime fields, use FFPACK
+        if isinstance(self.coeff_ring, finitefield.FinitePrimeField):
+            return ffpack_interface.kernel(self)
         tmp = self._cohensSimplify()
         M, d = tmp[0], tmp[2]
         basis = []
@@ -1304,6 +1308,8 @@ class FieldMatrix(RingMatrix):
         
         such that self * X == V
         """
+        if isinstance(self.coeff_ring, finitefield.FinitePrimeField):
+            return ffpack_interface.solution(self, V)
         if isinstance(V, vector.Vector):
             if self.row != len(V):
                 raise vector.VectorSizeError()
@@ -1375,6 +1381,15 @@ class FieldMatrix(RingMatrix):
 
         Warning: B should not be a matrix instead of a vector
         """
+        if isinstance(self.coeff_ring, finitefield.FinitePrimeField):
+            soln = ffpack_interface.solution(self, B)
+            if soln is None:
+                raise NoInverseImage("no solution")
+            ker = ffpack_interface.kernel(self)
+            if ker is not None:
+                return (soln[1], [ ker[i] for i in range(1, ker.column + 1) ])
+            else:
+                return (soln[1], [])
         M_1 = self.copy()
         M_1.insertColumn(self.column + 1, B.compo)
         V = M_1.kernel()
@@ -1462,6 +1477,15 @@ class FieldMatrix(RingMatrix):
             for j in range(1, i + 1):
                 U[j, i] = A[j, i]
         return (L, U, P)
+    
+    def LQUPDecomposition(self):
+        """
+        Return an LQUP decomposition which can be used with LQUPSolve.
+        """
+        return ffpack_interface.LQUPDecomposition(self)
+    
+    def LQUPSolve(self, PQ, rank, v):
+        return ffpack_interface.LQUPSolve(self, PQ, rank, v)
 
 
 class FieldSquareMatrix(RingSquareMatrix, FieldMatrix):
