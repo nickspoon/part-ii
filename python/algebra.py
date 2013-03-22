@@ -251,7 +251,7 @@ class Module(StructureConstantObject):
                     v.compo.append(-kernel[i-1][row,col])
                 lineq.addEquation(v, X[row,col])
         #(soln, ker) = lineq.solve()
-        soln = lineq.solution()[1]
+        soln = lineq.solution()
         d = vector.Vector(soln.compo[-len(kernel):])
         assert len(d) == len(kernel)
         Z = X.copy()

@@ -60,7 +60,7 @@ def numpy_to_nzmath(arr, field):
 
 def nzmath_to_numpy(M):
     Z = M.map(lambda x: x.getResidue())
-    return np.array([x for x in Z.compo], int)
+    return np.array([x for x in Z.compo], np.int32)
 
 # Given a matrix M and integer k, return M**k over Z using numpy
 def numpy_matrix_pow(M, k):

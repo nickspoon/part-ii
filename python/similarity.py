@@ -98,7 +98,7 @@ if __name__ == "__main__":
         print "Not invertible"
 
     print "Simultaneous similarity test"
-    dim = 4
+    dim = 30
     n = 2
     field = GF(2)
     invertible = True

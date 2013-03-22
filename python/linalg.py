@@ -3,6 +3,7 @@ from util import *
 from itertools import product
 import pool
 from parallel import inject_parallel
+import ffpack_interface
 
 # Class representing a system of linear equations.
 # The solution is x where self.A * x = self.b
@@ -59,11 +60,12 @@ class LinearEquations(object):
         
     # Returns a single solution
     def solution(self):
-        return self.A.inverseImage(self.b)
-        #return LUPsolve(self.A, self.b)
+        #return self.A.inverseImage(self.b)[1]
+        return ffpack_interface.solution(self.A, self.b)[1]
     
     def kernel(self):
-        K = self.A.kernel()
+        #K = self.A.kernel()
+        K = ffpack_interface.kernel(self.A)
         if K is None: return None
         return [ K[i] for i in range1(K.column) ]
 
