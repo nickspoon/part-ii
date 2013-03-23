@@ -2,8 +2,7 @@ from __future__ import division
 
 import nzmath.ring as ring
 import nzmath.vector as vector
-import finitefield
-import ffpack_interface
+import nzmath.ffpack_interface as ffpack_interface
 
 class Matrix(object):
     """
@@ -1247,7 +1246,7 @@ class FieldMatrix(RingMatrix):
         or return None if self's kernel is 0.
         """
         # For finite prime fields, use FFPACK
-        if isinstance(self.coeff_ring, finitefield.FinitePrimeField):
+        if self.coeff_ring.getCharacteristic != 0:
             return ffpack_interface.kernel(self)
         tmp = self._cohensSimplify()
         M, d = tmp[0], tmp[2]
@@ -1308,7 +1307,7 @@ class FieldMatrix(RingMatrix):
         
         such that self * X == V
         """
-        if isinstance(self.coeff_ring, finitefield.FinitePrimeField):
+        if self.coeff_ring.getCharacteristic() != 0:
             return ffpack_interface.solution(self, V)
         if isinstance(V, vector.Vector):
             if self.row != len(V):
@@ -1381,7 +1380,7 @@ class FieldMatrix(RingMatrix):
 
         Warning: B should not be a matrix instead of a vector
         """
-        if isinstance(self.coeff_ring, finitefield.FinitePrimeField):
+        if self.coeff_ring.getCharacteristic() != 0:
             soln = ffpack_interface.solution(self, B)
             if soln is None:
                 raise NoInverseImage("no solution")
