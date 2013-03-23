@@ -12,7 +12,7 @@ def weaksim_packed_list(Aps, Bps):
     else: Bs = map(unpack_matrix, Bps)
     dim = As[0].row
     field = As[0].coeff_ring
-    lineq = MatrixLinearEquations(field, dim, dim, parallel=False)
+    lineq = MatrixLinearEquations(field, dim, dim)
     for (A, B) in zip(As, Bs):
         lineq.weakSimilarity(A, B)
     result = lineq.kernel()
@@ -51,7 +51,7 @@ def compute_basis3(As, Bs):
 
 # Given two lists of matrices {A_1, ... A_n}, {B_1, ..., B_n}, find X
 # such that for all i = 1..n, X * A_i * X^-1 = B_i 
-def similarity(As, Bs):
+def similarity(As, Bs, name=None):
     pool.start_pool()
 
     dim = As[0].row
@@ -60,19 +60,37 @@ def similarity(As, Bs):
     for B in Bs: assert B.row == B.column == dim
     assert len(As) == len(Bs)
     print "Simultaneous similarity over %d %dx%d matrices" % (len(As), dim, dim)
-    (Lbasis, Vbasis) = compute_basis3(As, Bs)
-    # If V = {}, then there is no solution.
-    if not Vbasis:
-        print "No X found such that X*A_i = B_i*X"
-        return None
-    
-    assert all([X * B == B * X for B in Bs for X in Lbasis])
-    assert all([X * A == B * X for (A, B) in zip(As, Bs) for X in Vbasis])
-    
-    print "Constructing %d-dimensional algebra L" % len(Lbasis)
-    L = algebra.Algebra.fromBasis(field, Lbasis)
-    print "Constructing %d-dimensional module V" % len(Vbasis)
-    V = algebra.Module.fromBasis(field, Lbasis, Vbasis, L)
+    if name is not None:
+        try:
+            Vbasis = numpy_load_matrices(
+                        default_file_name(name + "_basis", field), field)
+            L = algebra.Algebra.fromFile(field, name)
+            L.semisimple = True
+            V = algebra.Module.fromFile(field, L, name)
+        except IOError:
+            L = None
+            V = None
+    if name is None or L is None or V is None:
+        (Lbasis, Vbasis) = compute_basis3(As, Bs)
+        # If V = {}, then there is no solution.
+        if not Vbasis:
+            print "No X found such that X*A_i = B_i*X"
+            return None
+        
+        assert all([X * B == B * X for B in Bs for X in Lbasis])
+        assert all([X * A == B * X for (A, B) in zip(As, Bs) for X in Vbasis])
+        
+        print "Constructing %d-dimensional algebra L" % len(Lbasis)
+        L = algebra.Algebra.fromBasis(field, Lbasis)
+        L.semisimple = True
+        print "Constructing %d-dimensional module V" % len(Vbasis)
+        V = algebra.Module.fromBasis(field, Lbasis, Vbasis, L)
+        
+        if name is not None:
+            # Save this work for later.
+            L.save(name)
+            V.save(name)
+            numpy_save_matrices(Vbasis, default_file_name(name + "_basis", field))
     #print_matrices(V.stconsts)
     print "Finding a generator in V"
     v = V.findGenerator()
@@ -86,6 +104,7 @@ def similarity(As, Bs):
         except matrix.NoInverse:
             return None
         assert all(Z * A * Zprime == B for (A,B) in zip(As, Bs))
+        print Z
         return Z
     return None
 

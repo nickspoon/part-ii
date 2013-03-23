@@ -2,8 +2,6 @@ from nzmath import matrix, vector, ring
 from util import *
 from itertools import product
 import pool
-from parallel import inject_parallel
-import ffpack_interface
 
 # Class representing a system of linear equations.
 # The solution is x where self.A * x = self.b
@@ -11,12 +9,11 @@ class LinearEquations(object):
     
     # field: Field over which to solve
     # dim: number of variables
-    def __init__(self, field, dim, parallel=True):
+    def __init__(self, field, dim):
         self.field = field
         self.dim = dim
         self.A = None
         self.b = None
-        self.parallel = parallel
         print "Solving a linear equation system in %d variables" % dim
         
     # X: k*n matrix; y: vector of length k
@@ -27,8 +24,6 @@ class LinearEquations(object):
             raise DimensionError("Matrix/vector size mismatch")
         if self.A is None:
             self.A = X.copy()
-            #if self.parallel:
-            #    inject_parallel(self.A)
             self.b = y.copy()
         else:
             self.A.extendRow(X)
@@ -61,20 +56,18 @@ class LinearEquations(object):
     # Returns a single solution
     def solution(self):
         return self.A.inverseImage(self.b)[1]
-        #return ffpack_interface.solution(self.A, self.b)[1]
     
     def kernel(self):
         K = self.A.kernel()
-        #K = ffpack_interface.kernel(self.A)
         if K is None: return None
         return [ K[i] for i in range1(K.column) ]
 
 # As above, but the variables form a matrix.
 class MatrixLinearEquations(LinearEquations):
-    def __init__(self, field, row, col, parallel=True):
+    def __init__(self, field, row, col):
         self.row = row
         self.col = col
-        super(MatrixLinearEquations, self).__init__(field, row*col, parallel)
+        super(MatrixLinearEquations, self).__init__(field, row*col)
         
     def addCoefficientMatrix(self, A, n):
         self.addEquation(flatten_matrix(A), n)
@@ -168,7 +161,7 @@ def weaksim_worker((Ap, Bp)):
         A = unpack_matrix(Ap)
         if Bp is None: B = A
         else: B = unpack_matrix(Bp)
-        lineq = MatrixLinearEquations(A.coeff_ring, A.row, A.column, parallel=False)
+        lineq = MatrixLinearEquations(A.coeff_ring, A.row, A.column)
         lineq.weakSimilarity(A, B)
         return [ pack_matrix(M) for M in lineq.kernel() ]
     except KeyboardInterrupt:
@@ -182,13 +175,13 @@ def parallel_weaksim(As, Bs=None):
 def intersect_worker(Lp):
     L = [ map(unpack_matrix, X) for X in Lp ]
     print "Intersecting %d solution spaces" % len(L)
-    R = reduce(lambda x, y: intersect_solutions(x, y, False), L)
+    R = reduce(intersect_solutions, L)
     return map(pack_matrix, R)
 
-def intersect_solutions(S1, S2, parallel=True):
+def intersect_solutions(S1, S2):
     if not S1 or not S2: return []
     field = S1[0].coeff_ring
-    lineq = LinearEquations(field, len(S1) + len(S2), parallel=parallel)
+    lineq = LinearEquations(field, len(S1) + len(S2))
     lineq.intersect(S1, S2)
     K = lineq.kernel()
     if K is None: return []

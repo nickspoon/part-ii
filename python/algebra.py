@@ -5,15 +5,21 @@ from itertools import product
 import pool
 import math
 import sys
-from parallel import inject_parallel
 
 class StructureConstantObject(object):
-    def __init__(self, field, stconsts):
+
+    @classmethod
+    def load_stconsts(cls, name, field):
+        s = name + "_" + cls.__name__
+        filename = default_file_name(s, field)
+        return numpy_load_matrices(filename, field)
+
+    def __init__(self, field, stconsts, name):
         self.stconsts = stconsts
         self.field = field
-        if self.stconsts:
-            self.dim = stconsts[0].row
-            self.unit = matrix.unitMatrix(self.dim, self.field)
+        self.dim = stconsts[0].row
+        self.unit = matrix.unitMatrix(self.dim, self.field)
+        self.name = name
         
     def getDimension(self):
         return self.dim
@@ -58,7 +64,6 @@ class StructureConstantObject(object):
         for i in range1(self.dim):
             X = U.copy()
             X.extendColumn(I[i])
-            inject_parallel(X)
             if X.rank() > U.rank():
                 U = X
                 bv.append(i)
@@ -84,38 +89,51 @@ class StructureConstantObject(object):
                     for i in range1(B1.column) for j in range1(B2.column))
         return stconsts
 
+    def save(self, name=None):
+        if self.name is None:
+            self.name = name
+        if self.name is not None:
+            s = self.name + "_" + self.__class__.__name__
+            filename = default_file_name(s, self.field)
+            numpy_save_matrices(self.stconsts, filename)
+
 class Algebra(StructureConstantObject):
 
     @classmethod
     def fromBasis(cls, field, Lbasis):
         stconsts = struct_from_basis(field, Lbasis)
         return cls(field, stconsts)
+    
+    @classmethod
+    def fromFile(cls, field, name):
+        stconsts = cls.load_stconsts(name, field)
+        return cls(field, stconsts, name)
 
-    def __init__(self, field, stconsts):
+    def __init__(self, field, stconsts, name=None):
         self.semisimple = False
-        super(Algebra, self).__init__(field, stconsts)
+        super(Algebra, self).__init__(field, stconsts, name)
     
     def radical(self):
         p = self.field.getCharacteristic()
         l = int(math.log(self.dim, p))
         # B = A union {1_n}
         # If we assume that the algebra is unital we don't need this
-        B = self.stconsts + [matrix.unitMatrix(self.dim, self.field)]
+        B = self.stconsts + [self.unit]
         # I_-1 = A, represented by a matrix of basis vectors over A
         I = matrix.unitMatrix(len(B), self.field)
         I.deleteColumn(len(B))
         for i in range1(0, l):
             print >>sys.stderr, "Radical computation #%d" % i
             M = matrix.Matrix(len(B), I.column, self.field)
-            #inject_parallel(M)
             for k in range1(I.column):
                 X = self.toMatrix(I[k], B)
                 Xp = pack_matrix(X)
                 work = [(p, i, Xp, pack_matrix(B[j-1])) for j in range1(len(B))]
-                vec = pool.pool().map(compute_g_worker, work)
+                vec = map(self.field.createElement(
+                            pool.pool().map(compute_g_worker, work)))
                 M.setColumn(k, vector.Vector(vec))
                 #for j in range1(len(B)):
-                #    assert M[j,k] == compute_g(p, i, X*B[j-1])
+                #    M[j,k] = compute_g(p, i, X*B[j-1])
             basis = M.kernel()
             if basis is None:
                 self.semisimple = True
@@ -147,11 +165,22 @@ class Module(StructureConstantObject):
     def fromBasis(cls, field, Lbasis, Vbasis, alg):
         stconsts = struct_from_basis(field, Lbasis, Vbasis)
         return cls(field, stconsts, alg)
+        
+    @classmethod
+    def fromFile(cls, field, alg, name):
+        stconsts = cls.load_stconsts(name, field)
+        M = cls(field, stconsts, alg, name)
+        try:
+            endo_fn = default_file_name(name + "_endo", field)
+            M.endo = numpy_load_matrices(endo_fn, field)
+        except IOError:
+            M.endo = None
+        return M
     
-    def __init__(self, field, stconsts, alg):
+    def __init__(self, field, stconsts, alg, name=None):
         self.algebra = alg
         self.endo = None
-        super(Module, self).__init__(field, stconsts)
+        super(Module, self).__init__(field, stconsts, name)
         
     # This matrix represents the coefficients of a system of linear equations
     # of the form av = X, where a is an element of the algebra, and v and X
@@ -193,17 +222,39 @@ class Module(StructureConstantObject):
                         return self.unit[j]
         return None
     
-    def endomorphismSpace(self):
+    def endomorphismSpace1(self):
         # Return a basis of the space of all endomorphisms of this module
         lineq = MatrixLinearEquations(self.field, self.dim, self.dim)
         for M in self.stconsts:
             lineq.weakSimilarity(M)
-        self.endo = lineq.kernel()
-        return self.endo
+        endo = lineq.kernel()
+        return endo
     
+    # Parallel intersection version
     def endomorphismSpace2(self):
         endspace = parallel_weaksim(self.stconsts)
-        self.endo = ParallelIntersection(endspace.get(), packed=True).get()
+        endo = ParallelIntersection(endspace.get(), packed=True).get()
+        return endo
+    
+    # Reduced memory usage version
+    def endomorphismSpace3(self):
+        endo = None
+        for M in self.stconsts:
+            lineq = MatrixLinearEquations(self.field, self.dim, self.dim)
+            lineq.weakSimilarity(M)
+            kern = lineq.kernel()
+            if endo:
+                endo = intersect_solutions(endo, kern)
+                if not endo:
+                    return None
+            else:
+                endo = kern
+        return endo
+    
+    def endomorphismSpace(self):
+        if self.endo is None:
+            self.endo = self.endomorphismSpace3()
+            self.save()
         return self.endo
         
     def reflexiveEndomorphism(self, v):
@@ -212,15 +263,15 @@ class Module(StructureConstantObject):
         # equations.
         
         # First guarantee that pi is a lambda-endomorphism
-        if self.endo is None:
-            self.endomorphismSpace()
+        endo = self.endomorphismSpace()
+        assert endo is not None
         
         # Add the condition pi(v) = v
-        lineq = LinearEquations(self.field, len(self.endo))
-        lineq.matEqSpace(v, self.endo)
+        lineq = LinearEquations(self.field, len(endo))
+        lineq.matEqSpace(v, endo)
         (w, kernel) = lineq.solve()
-        X = vector_to_matrix(w, self.endo)
-        solspace = [ vector_to_matrix(k, self.endo)
+        X = vector_to_matrix(w, endo)
+        solspace = [ vector_to_matrix(k, endo)
                         for k in kernel ]
         
         # Select a solution s.t. im(pi) = lambda*v
@@ -286,7 +337,7 @@ class Module(StructureConstantObject):
                 else:
                     return None
         # Semisimple case
-        v = matrix.unitMatrix(self.dim, self.field)[1]
+        v = self.unit[1]
         print >>sys.stderr, "Have element v with rank", self.rank(v)
         w = self.rankMax(v)
         while w is not None:
@@ -318,12 +369,18 @@ class Module(StructureConstantObject):
         bv = self.quotientBasis(I)
         # Construct a basis B for self as vectors over the current basis
         B = matrix.Matrix(self.dim, len(bv),
-            [ matrix.unitMatrix(self.dim, self.field)[i] for i in bv ])
+            [ self.unit[i] for i in bv ])
         B.extendColumn(I)
         subconsts = self.rebase(Ba, B)
         for i in range(len(subconsts)):
             subconsts[i] = subconsts[i].getBlock(1, 1, len(bv))
         return Module(self.field, subconsts, alg), self.basisListMatrix(bv)
+    
+    def save(self, name=None):
+        super(Module, self).save(name)
+        if self.name is not None and self.endo is not None:
+            endo_fn = default_file_name(self.name + "_endo", self.field)
+            numpy_save_matrices(self.endo, endo_fn)
 
 def compute_g(p, i, m):
     k = p**i

@@ -80,7 +80,7 @@ def stable_colouring(graphs):
     return Bs
 
 # Test if two graphs G1 and G2 are isomorphic using 2-dim WL
-def isomorphic(G1, G2):
+def isomorphic(G1, G2, name=None):
     if G1.number_of_nodes() != G2.number_of_nodes():
         print "Non-isomorphic: different number of nodes."
         return False
@@ -99,7 +99,7 @@ def isomorphic(G1, G2):
     C1 = [numpy_to_nzmath(B1[i], field) for i in range(len(B1)) if L1[i] != 0 ]
     C2 = [numpy_to_nzmath(B2[i], field) for i in range(len(B2)) if L2[i] != 0 ]
     assert len(C1) == len(C2)
-    if similarity(C1, C2) is None:
+    if similarity(C1, C2, name) is None:
         print "Non-isomorphic: no simultaneous similarity in GF(%d)." % p
         return False
     print "Isomorphic or too difficult to tell."
@@ -111,4 +111,5 @@ if __name__ == '__main__':
         (path, num) = entry.split(":")
         G = load_graph(path, int(num))
         Gs.append(G)
-    print isomorphic(Gs[0], Gs[1])
+    name = (sys.argv[1] + "_" + sys.argv[2]).replace(":","_")
+    print isomorphic(Gs[0], Gs[1], name)

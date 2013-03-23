@@ -81,6 +81,25 @@ def unpack_vector((l,m)):
     field = GF(m)
     return vector.Vector([ field.createElement(x) for x in l ])
 
+def numpy_save_matrices(matrices, fn):
+    arrs = map(nzmath_to_numpy, matrices)
+    arr = np.array(arrs)
+    np.savez(fn, arr)
+
+def numpy_load_matrices(fn, field):
+    npz = np.load(fn)
+    arr = npz['arr_0']
+    matrices = []
+    if len(arr.shape) == 2:
+        arr = np.reshape(arr, (1, arr.shape[0], arr.shape[1]))
+    for i in range(arr.shape[0]):
+        matrices.append(numpy_to_nzmath(arr[i], field))
+    npz.close()
+    return matrices
+
+def default_file_name(desc, field):
+    return desc + "_" + str(field.getCharacteristic()) + ".npz"
+
 # Given a list l, return a list of n equally-sized sublists of l
 def nchunks(l, n):
     size = (len(l) + n - 1) / n
