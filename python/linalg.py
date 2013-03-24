@@ -155,17 +155,14 @@ def unflatten_matrix(v, row, col):
         raise DimensionError("Incorrect matrix dimensions supplied.")
     compo = [ vector.Vector(v.compo[i:i+row]) for i in range(0, len(v.compo), row) ]
     return matrix.Matrix(row, col, compo)
-    
+
 def weaksim_worker((Ap, Bp)):
-    try:
-        A = unpack_matrix(Ap)
-        if Bp is None: B = A
-        else: B = unpack_matrix(Bp)
-        lineq = MatrixLinearEquations(A.coeff_ring, A.row, A.column)
-        lineq.weakSimilarity(A, B)
-        return [ pack_matrix(M) for M in lineq.kernel() ]
-    except KeyboardInterrupt:
-        pass
+    A = unpack_matrix(Ap)
+    if Bp is None: B = A
+    else: B = unpack_matrix(Bp)
+    lineq = MatrixLinearEquations(A.coeff_ring, A.row, A.column)
+    lineq.weakSimilarity(A, B)
+    return [ pack_matrix(M) for M in lineq.kernel() ]
 
 def parallel_weaksim(As, Bs=None):
     if Bs is None: Bs = As

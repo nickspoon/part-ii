@@ -233,7 +233,8 @@ class Module(StructureConstantObject):
     # Parallel intersection version
     def endomorphismSpace2(self):
         endspace = parallel_weaksim(self.stconsts)
-        endo = ParallelIntersection(endspace.get(), packed=True).get()
+        x = endspace.get()
+        endo = ParallelIntersection(x, packed=True).get()
         return endo
     
     # Reduced memory usage version
@@ -396,14 +397,14 @@ def compute_g_worker((p, i, Xp, Bp)):
     X = unpack_matrix(Xp)
     B = unpack_matrix(Bp)
     return compute_g(p, i, X*B)
-    
-def decompose_worker((m1p, m2p, (Lp, Up, Pp))):
+
+def decompose_workerLUP((m1p, m2p, (Lp, Up, Pp))):
     (m1, m2, L, U, P) = map(unpack_matrix, (m1p, m2p, Lp, Up, Pp))
     result = m1 * m2
     v = decompose(result, (L, U, P))
     return pack_matrix(v.toMatrix(True))
 
-def decompose_worker2((m1p, m2p, LUp, PQ, rank)):
+def decompose_workerLQUP((m1p, m2p, LUp, PQ, rank)):
     (m1, m2, LU) = map(unpack_matrix, (m1p, m2p, LUp))
     result = m1 * m2
     v = flatten_matrix(result)
@@ -423,7 +424,7 @@ def struct_from_basis(field, basis1, basis2=None):
     packedLU = pack_matrix(LQUP)
     packedb1 = map(pack_matrix, basis1)
     packedb2 = map(pack_matrix, basis2)
-    vects = pool.pool().map(decompose_worker2,
+    vects = pool.pool().map(decompose_workerLQUP,
             [ (packedb1[i], packedb2[j], packedLU, PQ, rank)
                 for (i, j) in product(range(n), range(m)) ])
     unpacked = map(unpack_matrix, vects)

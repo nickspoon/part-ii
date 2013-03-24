@@ -3,6 +3,7 @@ from nzmath.rational import theIntegerRing
 import numpy as np
 import random
 from math import ceil
+#import functools
 
 GF = lambda n: finitefield.FinitePrimeField(n)
 GF2 = finitefield.FinitePrimeField(2)
@@ -108,7 +109,16 @@ def nchunks(l, n):
 # Given a list l, return a list of sublists of l of length size
 def chunks(l, size):
     return (l[i:i+size] for i in range(0, len(l), size))
-        
+
+#def ki_wrap(f):
+#    @functools.wraps(f)
+#    def wrapped(*a, **k):
+#        try:
+#            f(*a, **k)
+#        except KeyboardInterrupt:
+#            pass
+#    return wrapped
+    
 if __name__ == "__main__":
     print range1(10)
     print range1(2,10)

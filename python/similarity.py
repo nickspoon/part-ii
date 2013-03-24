@@ -95,6 +95,8 @@ def similarity(As, Bs, name=None):
     print "Finding a generator in V"
     v = V.findGenerator()
     
+    pool.stop_pool()
+    
     if v is not None:
         Z = vector_to_matrix(v, Vbasis)
         # Check if Z is invertible, i.e. if v is a unit. If v is not a unit
@@ -104,7 +106,6 @@ def similarity(As, Bs, name=None):
         except matrix.NoInverse:
             return None
         assert all(Z * A * Zprime == B for (A,B) in zip(As, Bs))
-        print Z
         return Z
     return None
 
