@@ -7,14 +7,19 @@ from os import path
 
 def numpy_to_nzmath(arr, field):
     import nzmath.matrix as matrix
-    return matrix.Matrix(arr.shape[0], arr.shape[1], arr.tolist(), field)
+    (row, col) = arr.shape
+    M = matrix.Matrix(row, col, field)
+    for i in range(1, M.row + 1):
+        for j in range(1, M.column + 1):
+            M[i,j] = field.createElement(mat[i-1][j-1])
+    return M
 
 def nzmath_to_numpy(M):
-    try:
-        Z = M.map(lambda x: x.getResidue())
-    except AttributeError:
-        Z = M
-    return np.array([x for x in Z.compo], np.int32)
+    mat = np.zeros((M.row, M.column), np.int32)
+    for i in range(1, M.row + 1):
+        for j in range(1, M.column + 1):
+            mat[i-1][j-1] = M[i,j].getResidue()
+    return mat
 
 def pack_matrix(M):
     return (nzmath_to_numpy(M), M.coeff_ring.getCharacteristic())

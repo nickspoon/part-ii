@@ -6,7 +6,7 @@ import tempfile
 from util import *
 from similarity import similarity
 
-STABCOL_PATH="../../stabprogs/stabcol"
+STABCOL_PATH="../stabprogs/stabcol"
 
 # Load the nth graph from a graph6 file
 def load_graph(fn, n):
@@ -112,4 +112,4 @@ if __name__ == '__main__':
         G = load_graph(path, int(num))
         Gs.append(G)
     name = (sys.argv[1] + "_" + sys.argv[2]).replace(":","_")
-    print isomorphic(Gs[0], Gs[1], None)
+    print isomorphic(Gs[0], Gs[1], name)
