@@ -23,6 +23,10 @@ Element* convert(const Field &F, const int *mat_in, int row, int col) {
     return M;
 }*/
 
+extern "C" void free_k(void* ptr) {
+    free(ptr);
+}
+
 extern "C" int32_t* kernel(const int32_t *mat_in, const size_t row,
                          const size_t col, const int32_t p, size_t &kern_dim) {
     Field F(p);

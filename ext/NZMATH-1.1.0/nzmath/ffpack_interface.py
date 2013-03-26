@@ -46,6 +46,7 @@ def kernel(A):
     if dim == 0: return None
     k_arr = as_array(K_p, (A.column, dim))
     K = unpack_matrix((k_arr, p))
+    ffpack.free_k(K_p)
     return K
 
 def solution(A, b):
