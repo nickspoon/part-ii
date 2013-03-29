@@ -238,11 +238,12 @@ class Module(StructureConstantObject):
         return endo
     
     # Reduced memory usage version
-    def endomorphismSpace3(self):
+    def endomorphismSpace3(self, chunksize=3):
         endo = None
-        for M in self.stconsts:
+        for Ms in chunks(self.stconsts, chunksize):
             lineq = MatrixLinearEquations(self.field, self.dim, self.dim)
-            lineq.weakSimilarity(M)
+            for M in Ms:
+                lineq.weakSimilarity(M)
             kern = lineq.kernel()
             if endo:
                 endo = intersect_solutions(endo, kern)

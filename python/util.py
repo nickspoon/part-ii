@@ -57,11 +57,19 @@ def random_vector(dim, field):
     return vector.Vector([ random_element(field) for x in range1(dim) ])
 
 def numpy_to_nzmath(arr, field):
-    return matrix.Matrix(arr.shape[0], arr.shape[1], arr.tolist(), field)
+    (row, col) = arr.shape
+    M = matrix.Matrix(row, col, field)
+    for i in range(1, M.row + 1):
+        for j in range(1, M.column + 1):
+            M[i,j] = field.createElement(int(arr[i-1][j-1]))
+    return M
 
 def nzmath_to_numpy(M):
-    Z = M.map(lambda x: x.getResidue())
-    return np.array([x for x in Z.compo], np.int32)
+    mat = np.zeros((M.row, M.column), np.int32)
+    for i in range(1, M.row + 1):
+        for j in range(1, M.column + 1):
+            mat[i-1][j-1] = M[i,j].getResidue()
+    return mat
 
 # Given a matrix M and integer k, return M**k over Z using numpy
 def numpy_matrix_pow(M, k):
