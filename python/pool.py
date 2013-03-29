@@ -5,6 +5,13 @@ PROCESSES=cpu_count()
 RETIRE_AFTER=2
 _pool = None
 
+class InPool:
+    def __enter__(self):
+        start_pool()
+        return pool()
+    def __exit__(self, type, value, traceback):
+        stop_pool()
+
 def init_worker():
     signal.signal(signal.SIGINT, stop_handler)
 
@@ -18,13 +25,14 @@ def start_pool():
     
 def stop_pool():
     global _pool
-    _pool.close()
-    _pool = None
+    if _pool is not None:
+        _pool.close()
+        _pool = None
 
 def check_pool():
+    global _pool
     return (_pool is not None)
 
 def pool():
-    if _pool is None:
-        start_pool()
+    global _pool
     return _pool

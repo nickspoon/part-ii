@@ -1,5 +1,6 @@
 from algebra import Module
 from util import *
+from linalg import vector_to_matrix
 import examples
 import pool
 

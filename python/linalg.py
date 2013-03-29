@@ -17,14 +17,18 @@ class LinearEquations(object):
         print "Solving a linear equation system in %d variables" % dim
         
     # X: k*n matrix; y: vector of length k
-    def addEquations(self, X, y):
+    def addEquations(self, X, y, copy=True):
         if X.column != self.dim:
             raise DimensionError("Supplied matrix has the wrong number of columns")
         if X.row != len(y):
             raise DimensionError("Matrix/vector size mismatch")
         if self.A is None:
-            self.A = X.copy()
-            self.b = y.copy()
+            if copy:
+                self.A = X.copy()
+                self.b = y.copy()
+            else:
+                self.A = X
+                self.b = y
         else:
             self.A.extendRow(X)
             self.b.compo.extend(y)
@@ -47,7 +51,23 @@ class LinearEquations(object):
     
     def matEqSpace(self, v, S):
         coeffs = matrix.Matrix(len(v), len(S), [ B * v for B in S ])
-        self.addEquations(coeffs, v)
+        self.addEquations(coeffs, v, False)
+    
+    def weaksimSpace(self, A, B, S):
+        # As weakSimilarity, but X = sum_i(c_i * S_i)
+        if len(S) != self.dim:
+            raise DimensionError("Incorrect basis size.")
+        coeffs = matrix.Matrix(B.row * A.column, self.dim,
+                    [ flatten_matrix(S[i]*A - B*S[i]) for i in range(len(S)) ],
+                    self.field)
+        """for i in range1(B.row):
+            for j in range1(A.column):
+                for y in range1(len(S)):
+                    assert coeffs[(B.row * (i-1) + j), y] == \
+                        sum((S[y-1][i,k]*A[k,j] - B[i,k]*S[y-1][k,j]
+                            for k in range1(A.row))), \
+                            (coeffs[(B.row * (i-1) + j), y], sum((S[y-1][i,k]*A[k,j] - B[i,k]*S[y-1][k,j] for k in range1(A.row))))"""
+        self.addEquations(coeffs, zerovector(coeffs.row, self.field), False)
     
     # Returns a tuple (solution, kernel)
     def solve(self):

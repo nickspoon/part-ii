@@ -6,7 +6,7 @@ print "Module multiplication"
 stconsts = []
 stconsts.append(matrix.Matrix(2, 2, [1, 0, 0, 1], GF2))
 stconsts.append(matrix.Matrix(2, 2, [0, 0, 1, 1], GF2))
-L = algebra.Algebra(GF2, None)
+L = algebra.Algebra(GF2, stconsts)
 V = algebra.Module(GF2, stconsts, L)
 print V.vectorMultiply(ffvector([1, 0], GF2), ffvector([1, 1], GF2))
 print

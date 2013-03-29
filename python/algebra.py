@@ -122,29 +122,30 @@ class Algebra(StructureConstantObject):
         # I_-1 = A, represented by a matrix of basis vectors over A
         I = matrix.unitMatrix(len(B), self.field)
         I.deleteColumn(len(B))
-        for i in range1(0, l):
-            print >>sys.stderr, "Radical computation #%d" % i
-            M = matrix.Matrix(len(B), I.column, self.field)
-            for k in range1(I.column):
-                X = self.toMatrix(I[k], B)
-                Xp = pack_matrix(X)
-                work = [(p, i, Xp, pack_matrix(B[j-1])) for j in range1(len(B))]
-                vec = map(self.field.createElement(
-                            pool.pool().map(compute_g_worker, work)))
-                M.setColumn(k, vector.Vector(vec))
-                #for j in range1(len(B)):
-                #    M[j,k] = compute_g(p, i, X*B[j-1])
-            basis = M.kernel()
-            if basis is None:
-                self.semisimple = True
-                return None
-            # The solution is a set of column vectors sum_j(x_j * i_(i-1),j)
-            # where i_k,1, ..., i_k,n = basis(I_k). Here we transform these 
-            # back to vectors in the basis of B by multiplying by basis(I_k).
-            zero = vector.Vector([ self.field.zero for i in range(I.row) ])
-            I = matrix.Matrix(len(B), basis.column,
-                    [ sum((basis[i,j] * I[i] for i in range1(I.column)), zero)
-                        for j in range1(basis.column)])
+        with pool.InPool() as Pool:
+            for i in range1(0, l):
+                print >>sys.stderr, "Radical computation #%d" % i
+                M = matrix.Matrix(len(B), I.column, self.field)
+                for k in range1(I.column):
+                    X = self.toMatrix(I[k], B)
+                    Xp = pack_matrix(X)
+                    work = [(p, i, Xp, pack_matrix(B[j-1])) for j in range1(len(B))]
+                    vec = map(self.field.createElement,
+                                Pool.map(compute_g_worker, work))
+                    M.setColumn(k, vector.Vector(vec))
+                    #for j in range1(len(B)):
+                    #    M[j,k] = compute_g(p, i, X*B[j-1])
+                basis = M.kernel()
+                if basis is None:
+                    self.semisimple = True
+                    return None
+                # The solution is a set of column vectors sum_j(x_j * i_(i-1),j)
+                # where i_k,1, ..., i_k,n = basis(I_k). Here we transform these 
+                # back to vectors in the basis of B by multiplying by basis(I_k).
+                zero = vector.Vector([ self.field.zero for i in range(I.row) ])
+                I = matrix.Matrix(len(B), basis.column,
+                        [ sum((basis[i,j] * I[i] for i in range1(I.column)), zero)
+                            for j in range1(basis.column)])
         assert(all(x == self.field.zero for x in I.getRow(I.row)))
         return I.getBlock(1, 1, self.dim, I.column)
     
@@ -232,30 +233,34 @@ class Module(StructureConstantObject):
     
     # Parallel intersection version
     def endomorphismSpace2(self):
+        pool.start_pool()
         endspace = parallel_weaksim(self.stconsts)
         x = endspace.get()
         endo = ParallelIntersection(x, packed=True).get()
+        pool.stop_pool()
         return endo
     
     # Reduced memory usage version
-    def endomorphismSpace3(self, chunksize=3):
+    def endomorphismSpace3(self, chunksize=4):
         endo = None
         for Ms in chunks(self.stconsts, chunksize):
-            lineq = MatrixLinearEquations(self.field, self.dim, self.dim)
-            for M in Ms:
-                lineq.weakSimilarity(M)
-            kern = lineq.kernel()
-            if endo:
-                endo = intersect_solutions(endo, kern)
-                if not endo:
-                    return None
+            if endo is None:
+                lineq = MatrixLinearEquations(self.field, self.dim, self.dim)
+                for M in Ms:
+                    lineq.weakSimilarity(M)
+                endo = lineq.kernel()
             else:
-                endo = kern
+                lineq = LinearEquations(self.field, len(endo))
+                for M in Ms:
+                    lineq.weaksimSpace(M, M, endo)
+                ker = lineq.kernel()
+                endo = [ vector_to_matrix(v, endo) for v in ker ]
         return endo
     
     def endomorphismSpace(self):
         if self.endo is None:
             self.endo = self.endomorphismSpace3()
+            assert all(X * M == M * X for X in self.endo for M in self.stconsts)
             self.save()
         return self.endo
         
@@ -289,28 +294,31 @@ class Module(StructureConstantObject):
         
         # From the precondition, we know that pi = X + sum_i(d_i * X_i) for 
         # some d_i.
-        S = self.spanningSet(v)
-        lineq = LinearEquations(self.field, self.dim * self.algebra.dim + len(kernel))
-        for row in range1(self.dim):
-            for col in range1(self.dim):
-                # Matrix of coefficients of c_ij
-                C = matrix.FieldMatrix(self.dim, self.algebra.dim, self.field)
-                # sum_basis{(A[basis] * v)[row] * c[col,basis]}
-                for basis in range1(self.algebra.dim):
-                    C[col,basis] = S[row,basis]
-                v = flatten_matrix(C)
-                # - sum_i{(X_i)[row,col] * d_i}
-                for i in range1(len(kernel)):
-                    v.compo.append(-kernel[i-1][row,col])
-                lineq.addEquation(v, X[row,col])
-        #(soln, ker) = lineq.solve()
-        soln = lineq.solution()
-        d = vector.Vector(soln.compo[-len(kernel):])
-        assert len(d) == len(kernel)
-        Z = X.copy()
-        for i in range1(len(kernel)):
-            Z += d[i] * kernel[i-1]
-        return Z
+        if kernel:
+            S = self.spanningSet(v)
+            lineq = LinearEquations(self.field, self.dim * self.algebra.dim + len(kernel))
+            for row in range1(self.dim):
+                for col in range1(self.dim):
+                    # Matrix of coefficients of c_ij
+                    C = matrix.FieldMatrix(self.dim, self.algebra.dim, self.field)
+                    # sum_basis{(A[basis] * v)[row] * c[col,basis]}
+                    for basis in range1(self.algebra.dim):
+                        C[col,basis] = S[row,basis]
+                    v = flatten_matrix(C)
+                    # - sum_i{(X_i)[row,col] * d_i}
+                    for i in range1(len(kernel)):
+                        v.compo.append(-kernel[i-1][row,col])
+                    lineq.addEquation(v, X[row,col])
+            #(soln, ker) = lineq.solve()
+            soln = lineq.solution()
+            d = vector.Vector(soln.compo[-len(kernel):])
+            assert len(d) == len(kernel), (len(d), len(kernel))
+            Z = X.copy()
+            for i in range1(len(kernel)):
+                Z += d[i] * kernel[i-1]
+            return Z
+        else:
+            return X
         
     def findGenerator(self):
         # If the algebra is not known to be semisimple, compute the radical
@@ -425,9 +433,10 @@ def struct_from_basis(field, basis1, basis2=None):
     packedLU = pack_matrix(LQUP)
     packedb1 = map(pack_matrix, basis1)
     packedb2 = map(pack_matrix, basis2)
-    vects = pool.pool().map(decompose_workerLQUP,
-            [ (packedb1[i], packedb2[j], packedLU, PQ, rank)
-                for (i, j) in product(range(n), range(m)) ])
+    with pool.InPool() as Pool:
+        vects = Pool.map(decompose_workerLQUP,
+                [ (packedb1[i], packedb2[j], packedLU, PQ, rank)
+                    for (i, j) in product(range(n), range(m)) ])
     unpacked = map(unpack_matrix, vects)
     for (i, j) in product(range(n), range(m)):
         stconsts[i].setColumn(j+1, unpacked[i * m + j][1])

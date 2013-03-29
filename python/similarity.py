@@ -34,25 +34,27 @@ def compute_basis1(As, Bs):
     return (Lbasis, Vbasis)
 
 def compute_basis2(As, Bs):
+    pool.start_pool()
     Lspaces = parallel_weaksim(Bs)
     Vspaces = parallel_weaksim(As, Bs)
     Lbasis = ParallelIntersection(Lspaces.get(), packed=True, nch=pool.PROCESSES/2)
     Vbasis = ParallelIntersection(Vspaces.get(), packed=True, nch=pool.PROCESSES/2)
+    pool.stop_pool()
     return (Lbasis.get(), Vbasis.get())
 
 def compute_basis3(As, Bs):
-    Lspaces = pool.pool().apply_async(weaksim_packed_list,
-                    [map(pack_matrix, Bs), None])
-    Vspaces = pool.pool().apply_async(weaksim_packed_list,
-        [ map(pack_matrix, As), map(pack_matrix, Bs) ])
-    Lbasis = map(unpack_matrix, Lspaces.get())
-    Vbasis = map(unpack_matrix, Vspaces.get())
+    with pool.InPool() as Pool:
+        Lspaces = Pool.apply_async(weaksim_packed_list,
+                        [map(pack_matrix, Bs), None])
+        Vspaces = Pool.apply_async(weaksim_packed_list,
+            [ map(pack_matrix, As), map(pack_matrix, Bs) ])
+        Lbasis = map(unpack_matrix, Lspaces.get())
+        Vbasis = map(unpack_matrix, Vspaces.get())
     return (Lbasis, Vbasis)
 
 # Given two lists of matrices {A_1, ... A_n}, {B_1, ..., B_n}, find X
 # such that for all i = 1..n, X * A_i * X^-1 = B_i 
 def similarity(As, Bs, name=None):
-    pool.start_pool()
 
     dim = As[0].row
     field = As[0].coeff_ring
@@ -72,6 +74,7 @@ def similarity(As, Bs, name=None):
             V = None
     if name is None or L is None or V is None:
         (Lbasis, Vbasis) = compute_basis3(As, Bs)
+        pool.stop_pool()
         # If V = {}, then there is no solution.
         if not Vbasis:
             print "No X found such that X*A_i = B_i*X"
@@ -94,8 +97,6 @@ def similarity(As, Bs, name=None):
     #print_matrices(V.stconsts)
     print "Finding a generator in V"
     v = V.findGenerator()
-    
-    pool.stop_pool()
     
     if v is not None:
         Z = vector_to_matrix(v, Vbasis)

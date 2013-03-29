@@ -22,6 +22,9 @@ def ffvector(compo, field):
 def ffmatrix(M, field):
     return M.map(field.createElement)
 
+def zerovector(l, field):
+    return vector.Vector([ field.zero for i in range(l) ])
+
 def range1(start, stop=None, step=None):
     if stop is None:
         return range(1, start+1)
