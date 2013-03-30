@@ -57,16 +57,13 @@ class LinearEquations(object):
         # As weakSimilarity, but X = sum_i(c_i * S_i)
         if len(S) != self.dim:
             raise DimensionError("Incorrect basis size.")
+        with pool.InPool() as Pool:
+            Sp = map(pack_matrix, S)
+            Ap, Bp = map(pack_matrix, (A, B))
+            cols = Pool.map(ws_mul_worker, [(Ap, Bp, Mp) for Mp in Sp])
         coeffs = matrix.Matrix(B.row * A.column, self.dim,
-                    [ flatten_matrix(S[i]*A - B*S[i]) for i in range(len(S)) ],
+                    map(lambda X: flatten_matrix(unpack_matrix(X)), cols),
                     self.field)
-        """for i in range1(B.row):
-            for j in range1(A.column):
-                for y in range1(len(S)):
-                    assert coeffs[(B.row * (i-1) + j), y] == \
-                        sum((S[y-1][i,k]*A[k,j] - B[i,k]*S[y-1][k,j]
-                            for k in range1(A.row))), \
-                            (coeffs[(B.row * (i-1) + j), y], sum((S[y-1][i,k]*A[k,j] - B[i,k]*S[y-1][k,j] for k in range1(A.row))))"""
         self.addEquations(coeffs, zerovector(coeffs.row, self.field), False)
     
     # Returns a tuple (solution, kernel)
@@ -183,6 +180,11 @@ def weaksim_worker((Ap, Bp)):
     lineq = MatrixLinearEquations(A.coeff_ring, A.row, A.column)
     lineq.weakSimilarity(A, B)
     return [ pack_matrix(M) for M in lineq.kernel() ]
+
+def ws_mul_worker((Ap, Bp, Sp)):
+    A, B, S = map(unpack_matrix, (Ap, Bp, Sp))
+    X = S*A - B*S
+    return pack_matrix(X)
 
 def parallel_weaksim(As, Bs=None):
     if Bs is None: Bs = As

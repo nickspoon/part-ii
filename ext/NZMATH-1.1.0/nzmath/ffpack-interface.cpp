@@ -77,3 +77,14 @@ extern "C" int LQUPsolve(const int32_t *LU_in, const int32_t *vect_in,
                  P, Q, result, 1, v, 1, &info);
     return info;
 }
+
+extern "C" int matrixmul(int32_t* mat_in_a, int32_t* mat_in_b,
+                const size_t m, const size_t n, const size_t k,
+                const int32_t p, int32_t* result) {
+    Field F(p);
+    Element* A = (Element*)mat_in_a;
+    Element* B = (Element*)mat_in_b;
+    FFLAS::fgemm(F, FFLAS::FflasNoTrans, FFLAS::FflasNoTrans, m, n, k,
+                    F.one, A, k, B, n, F.zero, result, n);
+    return 0;
+}

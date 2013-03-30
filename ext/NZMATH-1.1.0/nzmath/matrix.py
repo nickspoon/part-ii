@@ -587,6 +587,8 @@ class RingMatrix(Matrix):
         if isinstance(other, Matrix):
             if self.column != other.row:
                 raise MatrixSizeError()
+            if self.coeff_ring.getCharacteristic() != 0:
+                return ffpack_interface.multiply(self, other)
             product = []
             for i in range(1, self.row + 1):
                 for j in range(1, other.column + 1):
@@ -1246,7 +1248,7 @@ class FieldMatrix(RingMatrix):
         or return None if self's kernel is 0.
         """
         # For finite prime fields, use FFPACK
-        if self.coeff_ring.getCharacteristic != 0:
+        if self.coeff_ring.getCharacteristic() != 0:
             return ffpack_interface.kernel(self)
         tmp = self._cohensSimplify()
         M, d = tmp[0], tmp[2]

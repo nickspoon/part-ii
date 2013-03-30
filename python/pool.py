@@ -2,7 +2,7 @@ from multiprocessing import Pool, cpu_count
 import signal, sys
 
 PROCESSES=cpu_count()
-RETIRE_AFTER=2
+RETIRE_AFTER=None
 _pool = None
 
 class InPool:

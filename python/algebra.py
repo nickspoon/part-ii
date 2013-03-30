@@ -241,7 +241,7 @@ class Module(StructureConstantObject):
         return endo
     
     # Reduced memory usage version
-    def endomorphismSpace3(self, chunksize=4):
+    def endomorphismSpace3(self, chunksize=2):
         endo = None
         for Ms in chunks(self.stconsts, chunksize):
             if endo is None:

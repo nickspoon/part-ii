@@ -100,3 +100,15 @@ def LQUPSolve(LU, (P, Q), rank, b):
     if result > 0: return None
     v = unpack_matrix((vres, p))[1]
     return v
+
+def multiply(A, B):
+    (arrA, p) = pack_matrix(A)
+    arrB = nzmath_to_numpy(B)
+    mul = ffpack.matrixmul
+    mul.restype = ctypes.c_int
+    mul.argtypes = [ndpointer(ctypes.c_int), ndpointer(ctypes.c_int),
+                    ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t,
+                    ctypes.c_int, ndpointer(ctypes.c_int)]
+    arrC = np.zeros((A.row, B.column), dtype=np.int32)
+    mul(arrA, arrB, A.row, B.column, A.column, p, arrC)
+    return unpack_matrix((arrC, p))
