@@ -221,11 +221,15 @@ def basis_reduce(X):
 
 # Convert the vector representation of a matrix over a basis B into
 # its standard matrix representation M = sum_i (b_i * B_i)
-def vector_to_matrix(v, B):
-    M = matrix.Matrix(B[0].row, B[0].column, B[0].coeff_ring)
-    for i in range1(len(v)):
-        M += v[i] * B[i-1]
-    return M
+def vector_to_matrix(v, B, packed=False):
+    if not packed:
+        arrs = [nzmath_to_numpy(X) for X in B]
+        field = B[0].coeff_ring
+        v = nzmath_to_numpy(v.toMatrix(True))
+    else:
+        (arrs, field) = B
+    result = v2m_numpy(v, arrs)
+    return numpy_to_nzmath(result, field)
 
 # Forward/back-substitution
 def substitute(M, v, backward=False):

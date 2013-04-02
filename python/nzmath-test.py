@@ -56,3 +56,4 @@ try:
 except ZeroDivisionError:
     print "Div/zero"
     print A
+print

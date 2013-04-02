@@ -74,6 +74,10 @@ def nzmath_to_numpy(M):
             mat[i-1][j-1] = M[i,j].getResidue()
     return mat
 
+def v2m_numpy(v, arrs):
+    v = v.reshape(-1)
+    return np.tensordot(v, arrs, 1)
+
 # Given a matrix M and integer k, return M**k over Z using numpy
 def numpy_matrix_pow(M, k):
     X = nzmath_to_numpy(M)

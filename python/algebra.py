@@ -254,7 +254,10 @@ class Module(StructureConstantObject):
                 for M in Ms:
                     lineq.weaksimSpace(M, M, endo)
                 ker = lineq.kernel()
-                endo = [ vector_to_matrix(v, endo) for v in ker ]
+                endo_array = [ nzmath_to_numpy(X) for X in endo ]
+                ker_array = [ nzmath_to_numpy(v.toMatrix(True)) for v in ker ]
+                endo = [ vector_to_matrix(v, (endo_array, self.field), True)
+                            for v in ker_array ]
         return endo
     
     def endomorphismSpace(self):
