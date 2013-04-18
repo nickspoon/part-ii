@@ -1297,6 +1297,8 @@ class FieldMatrix(RingMatrix):
         """
         Return rank of self.
         """
+        if self.coeff_ring.getCharacteristic() != 0:
+            return ffpack_interface.LQUPDecomposition(self)[2]
         img = self.image()
         if img:
             return img.column
