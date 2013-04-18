@@ -78,12 +78,13 @@ class StructureConstantObject(object):
             B2 = B1
         # We express the multiplication of vectors in B1 by vectors in B2
         # in terms of a sum of the vectors in B2
+        (LU, PQ, rank) = B2.LQUPDecomposition()
         stconsts = []
         for i in range1(B1.column):
             M = matrix.Matrix(B2.column, B2.column, self.field)
             for j in range1(B2.column):
                 v = self.vectorMultiply(B1[i], B2[j])
-                M[j] = B2.inverseImage(v)[1]
+                M[j] = LU.LQUPSolve(PQ, rank, v)
             stconsts.append(M)
         assert all(B2 * stconsts[i-1][j] == self.vectorMultiply(B1[i], B2[j])
                     for i in range1(B1.column) for j in range1(B2.column))
