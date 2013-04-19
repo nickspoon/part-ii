@@ -89,14 +89,14 @@ class StructureConstantObject(object):
                         self.field.getCharacteristic())
         B2p = pack_matrix(B2)
         stconsts = []
-        for i in range1(B1.column):
-            with pool.InPool() as Pool:
+        with pool.InPool() as Pool:
+            for i in range1(B1.column):
                 B1ip = pack_vector(B1[i])
                 work = [ (B1ip, pack_vector(B2[j]), packed_st, B2p)
                             for j in range1(B2.column) ]
                 cols = [ unpack_vector(v) for v in Pool.map(rebase_worker, work) ]
-            M = matrix.Matrix(B2.column, B2.column, cols, self.field)
-            stconsts.append(M)
+                M = matrix.Matrix(B2.column, B2.column, cols, self.field)
+                stconsts.append(M)
         assert all(B2 * stconsts[i-1][j] == self.vectorMultiply(B1[i], B2[j])
                     for i in range1(B1.column) for j in range1(B2.column))
         return stconsts
@@ -132,7 +132,6 @@ class Algebra(StructureConstantObject):
         stconsts = cls.load_stconsts(name, field)
         L = cls(field, stconsts, name)
         try:
-            print "Loading radical"
             L.Rad = cls.load_radical(name, field)
         except IOError:
             pass
@@ -180,16 +179,17 @@ class Algebra(StructureConstantObject):
         self.save()
         return self.Rad
     
-    # Given a basis for the quotient I, return the subalgebra L/I.
+    # Given a basis for the ideal I, return the subalgebra L/I.
     def quotient(self, I):
         bv = self.quotientBasis(I)
         # Construct a basis B for self as vectors over the current basis
-        B = matrix.Matrix(self.dim, len(bv), [ self.unit[i] for i in bv ])
-        B.extendColumn(I)
-        subconsts = self.rebase(B)[:len(bv)]
+        B1 = self.basisListMatrix(bv)
+        B2 = B1.copy()
+        B2.extendColumn(I)
+        subconsts = self.rebase(B1, B2)
         for i in range(len(subconsts)):
             subconsts[i] = subconsts[i].getBlock(1, 1, len(bv))
-        return Algebra(self.field, subconsts), self.basisListMatrix(bv)
+        return Algebra(self.field, subconsts), B1
 
 class Module(StructureConstantObject):
     
@@ -424,8 +424,7 @@ class Module(StructureConstantObject):
     def quotient(self, I, Ba, alg):
         bv = self.quotientBasis(I)
         # Construct a basis B for self as vectors over the current basis
-        B = matrix.Matrix(self.dim, len(bv),
-            [ self.unit[i] for i in bv ])
+        B = self.basisListMatrix(bv)
         B.extendColumn(I)
         subconsts = self.rebase(Ba, B)
         for i in range(len(subconsts)):
