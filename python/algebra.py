@@ -13,6 +13,12 @@ class StructureConstantObject(object):
         s = name + "_" + cls.__name__
         filename = default_file_name(s, field)
         return numpy_load_matrices(filename, field)
+    
+    @classmethod
+    def load_radical(cls, name, field):
+        s = name + "_" + cls.__name__ + "_Rad"
+        filename = default_file_name(s, field)
+        return numpy_load_matrices(filename, field)[0]
 
     def __init__(self, field, stconsts, name):
         self.stconsts = stconsts
@@ -20,6 +26,7 @@ class StructureConstantObject(object):
         self.dim = stconsts[0].row
         self.unit = matrix.unitMatrix(self.dim, self.field)
         self.name = name
+        self.Rad = None
         
     def getDimension(self):
         return self.dim
@@ -78,13 +85,17 @@ class StructureConstantObject(object):
             B2 = B1
         # We express the multiplication of vectors in B1 by vectors in B2
         # in terms of a sum of the vectors in B2
-        (LU, PQ, rank) = B2.LQUPDecomposition()
+        packed_st = ([nzmath_to_numpy(M) for M in self.stconsts], 
+                        self.field.getCharacteristic())
+        B2p = pack_matrix(B2)
         stconsts = []
         for i in range1(B1.column):
-            M = matrix.Matrix(B2.column, B2.column, self.field)
-            for j in range1(B2.column):
-                v = self.vectorMultiply(B1[i], B2[j])
-                M[j] = LU.LQUPSolve(PQ, rank, v)
+            with pool.InPool() as Pool:
+                B1ip = pack_vector(B1[i])
+                work = [ (B1ip, pack_vector(B2[j]), packed_st, B2p)
+                            for j in range1(B2.column) ]
+                cols = [ unpack_vector(v) for v in Pool.map(rebase_worker, work) ]
+            M = matrix.Matrix(B2.column, B2.column, cols, self.field)
             stconsts.append(M)
         assert all(B2 * stconsts[i-1][j] == self.vectorMultiply(B1[i], B2[j])
                     for i in range1(B1.column) for j in range1(B2.column))
@@ -97,6 +108,17 @@ class StructureConstantObject(object):
             s = self.name + "_" + self.__class__.__name__
             filename = default_file_name(s, self.field)
             numpy_save_matrices(self.stconsts, filename)
+            if self.Rad is not None:
+                filename = default_file_name(s + "_Rad", self.field)
+                numpy_save_matrices([self.Rad], filename)
+
+def rebase_worker((B1ip, B2jp, (stc, p), B2p)):
+    field = GF(p)
+    X = vector_to_matrix(B1ip[0], (stc, field), True)
+    B2j = unpack_vector(B2jp)
+    B2 = unpack_matrix(B2p)
+    v = X * B2j
+    return pack_vector(B2.inverseImage(v)[1])
 
 class Algebra(StructureConstantObject):
 
@@ -108,7 +130,13 @@ class Algebra(StructureConstantObject):
     @classmethod
     def fromFile(cls, field, name):
         stconsts = cls.load_stconsts(name, field)
-        return cls(field, stconsts, name)
+        L = cls(field, stconsts, name)
+        try:
+            print "Loading radical"
+            L.Rad = cls.load_radical(name, field)
+        except IOError:
+            pass
+        return L
 
     def __init__(self, field, stconsts, name=None):
         self.semisimple = False
@@ -148,7 +176,9 @@ class Algebra(StructureConstantObject):
                         [ sum((basis[i,j] * I[i] for i in range1(I.column)), zero)
                             for j in range1(basis.column)])
         assert(all(x == self.field.zero for x in I.getRow(I.row)))
-        return I.getBlock(1, 1, self.dim, I.column)
+        self.Rad = I.getBlock(1, 1, self.dim, I.column)
+        self.save()
+        return self.Rad
     
     # Given a basis for the quotient I, return the subalgebra L/I.
     def quotient(self, I):
@@ -177,6 +207,10 @@ class Module(StructureConstantObject):
             M.endo = numpy_load_matrices(endo_fn, field)
         except IOError:
             M.endo = None
+        try:
+            M.Rad = cls.load_radical(name, field)
+        except IOError:
+            pass
         return M
     
     def __init__(self, field, stconsts, alg, name=None):
@@ -328,14 +362,20 @@ class Module(StructureConstantObject):
         # If the algebra is not known to be semisimple, compute the radical
         if not self.algebra.semisimple:
             print >>sys.stderr, "Computing Rad(L)..."
-            RadL = self.algebra.radical()
+            if self.algebra.Rad is None:
+                RadL = self.algebra.radical()
+            else:
+                RadL = self.algebra.Rad
             if RadL is not None:
                 print >>sys.stderr, RadL.column, "dimension(s)"
             else:
                 print >>sys.stderr, "None"
             if RadL is not None:
                 print >>sys.stderr, "Computing Rad(V) = Rad(L)V"
-                RadV = self.radical(RadL)
+                if self.Rad is None:
+                    RadV = self.radical(RadL)
+                else:
+                    RadV = self.Rad
                 print >>sys.stderr, "Computing quotient algebra L/RadL...",
                 Lbar, LB = self.algebra.quotient(RadL)
                 print >>sys.stderr, Lbar.dim, "dimension(s)"
@@ -375,7 +415,9 @@ class Module(StructureConstantObject):
                 RV = self.toMatrix(R[col])
             else:
                 RV.extendColumn(self.toMatrix(R[col]))
-        return basis_reduce(RV)
+        self.Rad = basis_reduce(RV)
+        self.save()
+        return self.Rad
     
     # Given the basis of an ideal I of V and the basis of the subalgebra over
     # which V/I is defined, return the submodule V/I.

@@ -91,7 +91,7 @@ def unpack_matrix((X, p)):
     return numpy_to_nzmath(X, GF(p))
 
 def pack_vector(v):
-    return ([ x.getResidue() for x in v.compo ], v[1].getModulus())
+    return (np.array([ x.getResidue() for x in v.compo ], dtype=int), v[1].getModulus())
 
 def unpack_vector((l,m)):
     field = GF(m)

@@ -92,7 +92,7 @@ def isomorphic(G1, G2, name=None):
         print "Non-isomorphic: different stable colouring."
         return False
     #field = next_prime_field(len(B1))
-    field = GF(5)
+    field = GF(2)
     p = field.getCharacteristic()
     print "Testing similarity over GF(%d)" % p
     # Convert to numpy matrices, ignoring colours with zero entries

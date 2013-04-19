@@ -67,7 +67,7 @@ def similarity(As, Bs, name=None):
             Vbasis = numpy_load_matrices(
                         default_file_name(name + "_basis", field), field)
             L = algebra.Algebra.fromFile(field, name)
-            L.semisimple = True
+            #L.semisimple = True
             V = algebra.Module.fromFile(field, L, name)
         except IOError:
             L = None
@@ -85,7 +85,7 @@ def similarity(As, Bs, name=None):
         
         print "Constructing %d-dimensional algebra L" % len(Lbasis)
         L = algebra.Algebra.fromBasis(field, Lbasis)
-        L.semisimple = True
+        #L.semisimple = True
         print "Constructing %d-dimensional module V" % len(Vbasis)
         V = algebra.Module.fromBasis(field, Lbasis, Vbasis, L)
         
