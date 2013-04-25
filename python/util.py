@@ -78,10 +78,22 @@ def v2m_numpy(v, arrs):
     v = v.reshape(-1)
     return np.tensordot(v, arrs, 1)
 
-# Given a matrix M and integer k, return M**k over Z using numpy
-def numpy_matrix_pow(M, k):
+# Given a matrix M and integers k, n, return M**k mod n in Z using numpy
+def numpy_matrix_pow(M, k, n=None):
     X = nzmath_to_numpy(M)
-    Y = np.linalg.matrix_power(X, k)
+    if n is not None:
+        # Compute by repeated squaring with modulo
+        N = np.empty(X.shape, dtype=int)
+        N.fill(n)
+        Y = np.identity(M.row, dtype=int)
+        Z = np.linalg.matrix_power(X, k)
+        while k > 0:
+            if k % 2 == 1:
+                Y = np.mod(np.dot(Y, X), N)
+            X = np.mod(np.dot(X, X), N)
+            k = k / 2
+    else:
+        Y = np.linalg.matrix_power(X, k)
     return numpy_to_nzmath(Y, theIntegerRing)
     
 def pack_matrix(M):

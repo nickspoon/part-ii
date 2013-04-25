@@ -111,15 +111,8 @@ def similarity(As, Bs, name=None):
     return None
 
 if __name__ == "__main__":
-    print "Random matrix test"
-    R = random_matrix(3, GF(3))
-    try:
-        print_matrices([R, R.inverse()])
-    except matrix.NoInverse:
-        print "Not invertible"
-
     print "Simultaneous similarity test"
-    dim = 30
+    dim = 2
     n = 2
     field = GF(2)
     invertible = True
@@ -129,9 +122,10 @@ if __name__ == "__main__":
     except matrix.NoInverse:
         invertible = False
     Ms = [ random_matrix(dim, field) for i in range(n) ]
-    As = [ X * M for M in Ms ]
-    Bs = [ M * X for M in Ms ]
+    As = [ M * X for M in Ms ]
+    Bs = [ X * M for M in Ms ]
     print X
     print "invertible =", invertible
     print
-    print similarity(As, Bs)
+    Z = similarity(As, Bs)
+    print Z

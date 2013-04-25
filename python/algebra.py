@@ -298,7 +298,8 @@ class Module(StructureConstantObject):
     def endomorphismSpace(self):
         if self.endo is None:
             self.endo = self.endomorphismSpace3()
-            assert all(X * M == M * X for X in self.endo for M in self.stconsts)
+            print "End(V) has %d dimensions" % len(self.endo)
+            #assert all(X * M == M * X for X in self.endo for M in self.stconsts)
             self.save()
         return self.endo
         
@@ -440,10 +441,10 @@ class Module(StructureConstantObject):
 def compute_g(p, i, m):
     k = p**i
     # Compute the kth power of m as an integral matrix
-    M = numpy_matrix_pow(m, k)
+    M = numpy_matrix_pow(m, k, k*p)
     # Compute f_i(M)
     f = M.trace()/k
-    assert(f == int(f))
+    assert(f == int(f)), ("%f != %d" % (f, int(f)))
     # Obtain a result in F by taking modulo p
     return (int(f) % p)
 

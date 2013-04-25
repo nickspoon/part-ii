@@ -21,6 +21,9 @@ def load_graph(fn, n):
     f.close()
     return G
 
+def load_all_graphs(fn):
+    return nx.read_graph6_list(fn)
+
 # Write a graph in a form STABCOL can process    
 def write_stabcol_input(G):
     A = nx.to_numpy_matrix(G, None, int)
@@ -49,6 +52,8 @@ def run_stabcol(fn):
             cells = int(line.strip().rpartition(" ")[2])
         if line.startswith("adjacency matrix"):
             adjmat = True
+        if line.startswith("please check your input!"):
+            raise ValueError("Input rejected by STABCOL")
     return (colors, cells, A)
 
 def stabcol(G):

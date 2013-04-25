@@ -587,7 +587,8 @@ class RingMatrix(Matrix):
         if isinstance(other, Matrix):
             if self.column != other.row:
                 raise MatrixSizeError()
-            if self.coeff_ring.getCharacteristic() != 0:
+            if self.coeff_ring.getCharacteristic() != 0 \
+                    and ffpack_interface.ENABLE_FFPACK:
                 return ffpack_interface.multiply(self, other)
             product = []
             for i in range(1, self.row + 1):
@@ -1248,7 +1249,8 @@ class FieldMatrix(RingMatrix):
         or return None if self's kernel is 0.
         """
         # For finite prime fields, use FFPACK
-        if self.coeff_ring.getCharacteristic() != 0:
+        if self.coeff_ring.getCharacteristic() != 0 \
+                and ffpack_interface.ENABLE_FFPACK:
             return ffpack_interface.kernel(self)
         tmp = self._cohensSimplify()
         M, d = tmp[0], tmp[2]
@@ -1297,7 +1299,8 @@ class FieldMatrix(RingMatrix):
         """
         Return rank of self.
         """
-        if self.coeff_ring.getCharacteristic() != 0:
+        if self.coeff_ring.getCharacteristic() != 0 \
+                and ffpack_interface.ENABLE_FFPACK:
             return ffpack_interface.LQUPDecomposition(self)[2]
         img = self.image()
         if img:
@@ -1311,7 +1314,8 @@ class FieldMatrix(RingMatrix):
         
         such that self * X == V
         """
-        if self.coeff_ring.getCharacteristic() != 0:
+        if self.coeff_ring.getCharacteristic() != 0 \
+                and ffpack_interface.ENABLE_FFPACK:
             return ffpack_interface.solution(self, V)
         if isinstance(V, vector.Vector):
             if self.row != len(V):
@@ -1384,7 +1388,8 @@ class FieldMatrix(RingMatrix):
 
         Warning: B should not be a matrix instead of a vector
         """
-        if self.coeff_ring.getCharacteristic() != 0:
+        if self.coeff_ring.getCharacteristic() != 0 \
+                and ffpack_interface.ENABLE_FFPACK:
             soln = ffpack_interface.solution(self, B)
             if soln is None:
                 raise NoInverseImage("no solution")
@@ -1485,9 +1490,13 @@ class FieldMatrix(RingMatrix):
         """
         Return an LQUP decomposition which can be used with LQUPSolve.
         """
+        if not ffpack_interface.ENABLE_FFPACK:
+            raise NotImplementedError("FFPACK interface not available")
         return ffpack_interface.LQUPDecomposition(self)
     
     def LQUPSolve(self, PQ, rank, v):
+        if not ffpack_interface.ENABLE_FFPACK:
+            raise NotImplementedError("FFPACK interface not available")
         return ffpack_interface.LQUPSolve(self, PQ, rank, v)
 
 

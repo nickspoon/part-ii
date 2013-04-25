@@ -4,6 +4,12 @@ from numpy.ctypeslib import ndpointer, as_array
 import nzmath.vector as vector
 from os import path
 
+try:
+    ffpack_path = path.join(path.dirname(path.realpath(__file__)), "ffpack-interface.so")
+    ffpack = ctypes.cdll.LoadLibrary(ffpack_path)
+    ENABLE_FFPACK = True
+except OSError:
+    ENABLE_FFPACK = False
 
 def numpy_to_nzmath(arr, field):
     import nzmath.matrix as matrix
@@ -28,9 +34,6 @@ def unpack_matrix((X, p)):
     import nzmath.finitefield as finitefield
     GF = lambda n: finitefield.FinitePrimeField(n)
     return numpy_to_nzmath(X, GF(p))
-
-ffpack_path = path.join(path.dirname(path.realpath(__file__)), "ffpack-interface.so")
-ffpack = ctypes.cdll.LoadLibrary(ffpack_path)
 
 def kernel(A):
     (arr, p) = pack_matrix(A)
