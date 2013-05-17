@@ -16,6 +16,4 @@ def test_reflexive():
 
 if __name__ == "__main__":
     mods = examples.generate_modules()
-    pool.start_pool()
     test_reflexive()
-    pool.stop_pool()

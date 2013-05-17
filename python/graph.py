@@ -23,6 +23,16 @@ def load_graph(fn, n):
 
 def load_all_graphs(fn):
     return nx.read_graph6_list(fn)
+    
+def shuffle_graph(G):
+    Gp = nx.Graph()
+    N = G.nodes()
+    random.shuffle(N)
+    for i in range(len(N)):
+        Gp.add_node(N[i])
+        for (u,v) in G.edges([i]):
+            Gp.add_edge(N[u], N[v])
+    return Gp
 
 # Write a graph in a form STABCOL can process    
 def write_stabcol_input(G):
@@ -40,7 +50,8 @@ def write_stabcol_input(G):
     return path
 
 def run_stabcol(fn):
-    stabcol = Popen([STABCOL_PATH, fn], stdout=PIPE)
+    path = os.path.join(os.path.dirname(os.path.realpath(__file__)), STABCOL_PATH)
+    stabcol = Popen([path, fn], stdout=PIPE)
     # Parse stabcol output
     adjmat = False
     for line in stabcol.stdout:
